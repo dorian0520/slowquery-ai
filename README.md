@@ -35,6 +35,10 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 Grafana: http://localhost:3000 (로그인 없이 보기). 자세한 순서는 [`lab/README.md`](lab/README.md), 내 환경에 붙이는 법은 [`skeleton/README.md`](skeleton/README.md) 를 보세요.
 
+## AWS 버전 (Terraform · Lambda · Step Functions)
+
+같은 파이프라인을 AWS 에 올리는 IaC 버전은 [`aws/README.md`](aws/README.md) 에 있습니다 — RDS MySQL 두 대 · Lambda(수집 · 검출 · 티켓 · Bedrock 진단 · 실측 검증 · 추적 · 발행 · 리포트) · Step Functions 일일 배치 · EventBridge 스케줄 · EC2 Grafana. 운영 DDL 은 자동 실행하지 않고 변경 계획만 만듭니다. 정적 검증(`terraform validate`, 테스트 73개)까지 마쳤고, 실제 배포는 직접 하며 비용이 발생합니다.
+
 ## 문서
 
 단계별 흐름도와 상세 설명(설정 · 데이터 · 대시보드 · 수집 · 집계 · 진단 · 티켓 · 추적)은 [`docs/README.md`](docs/README.md) 에 있습니다.

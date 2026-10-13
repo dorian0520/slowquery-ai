@@ -1,0 +1,195 @@
+{
+  "Comment": "slowq 일일 파이프라인: 수집 → 검출 → 티켓 발행 → (티켓별 AI 분석 → 실측 검증 → 결과 첨부) → 해결·재발 추적 → 발행 → (주 1회) 리포트. 실패는 SNS 로 알린다.",
+  "StartAt": "Collect",
+  "States": {
+    "Collect": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": { "FunctionName": "${collect_arn}", "Payload.$": "$" },
+      "ResultSelector": { "out.$": "$.Payload" },
+      "ResultPath": "$.collect",
+      "Retry": [
+        { "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"], "IntervalSeconds": 5, "MaxAttempts": 3, "BackoffRate": 2 }
+      ],
+      "Catch": [ { "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "NotifyFailure" } ],
+      "Next": "Detect"
+    },
+    "Detect": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": { "FunctionName": "${detect_arn}", "Payload": { "log_date.$": "$.collect.out.log_date" } },
+      "ResultSelector": { "out.$": "$.Payload" },
+      "ResultPath": "$.detect",
+      "Retry": [
+        { "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"], "IntervalSeconds": 5, "MaxAttempts": 3, "BackoffRate": 2 }
+      ],
+      "Catch": [ { "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "NotifyFailure" } ],
+      "Next": "IssueTickets"
+    },
+    "IssueTickets": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": { "FunctionName": "${issue_tickets_arn}", "Payload": { "log_date.$": "$.collect.out.log_date", "hits.$": "$.detect.out.hits" } },
+      "ResultSelector": { "out.$": "$.Payload" },
+      "ResultPath": "$.tickets",
+      "Retry": [
+        { "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"], "IntervalSeconds": 5, "MaxAttempts": 3, "BackoffRate": 2 }
+      ],
+      "Catch": [ { "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "NotifyFailure" } ],
+      "Next": "Slim"
+    },
+    "Slim": {
+      "Type": "Pass",
+      "Comment": "검출 목록(hits)은 티켓 발행에 썼으므로 상태에서 덜어낸다 (256KB 제한).",
+      "Parameters": {
+        "collect.$": "$.collect",
+        "detect": { "count.$": "$.detect.out.count" },
+        "tickets.$": "$.tickets"
+      },
+      "Next": "AnalyzeEach"
+    },
+    "AnalyzeEach": {
+      "Type": "Map",
+      "Comment": "티켓마다 분석 → 검증 → 첨부. 검증 DB 하나를 공유하므로 측정이 섞이지 않게 한 번에 하나씩.",
+      "ItemsPath": "$.tickets.out.candidates",
+      "ItemSelector": { "ticket.$": "$$.Map.Item.Value" },
+      "MaxConcurrency": 1,
+      "ItemProcessor": {
+        "ProcessorConfig": { "Mode": "INLINE" },
+        "StartAt": "Analyze",
+        "States": {
+          "Analyze": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": { "FunctionName": "${analyze_arn}", "Payload": { "ticket.$": "$.ticket" } },
+            "ResultSelector": { "out.$": "$.Payload" },
+            "ResultPath": "$.analysis",
+            "TimeoutSeconds": 900,
+            "Retry": [
+              { "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"], "IntervalSeconds": 10, "MaxAttempts": 2, "BackoffRate": 2 }
+            ],
+            "Catch": [ { "ErrorEquals": ["States.ALL"], "ResultPath": "$.analysis_error", "Next": "AnalyzeFailed" } ],
+            "Next": "Verify"
+          },
+          "AnalyzeFailed": {
+            "Type": "Pass",
+            "Result": { "out": { "status": "ERROR", "error": "Analyze 단계 실패 (Lambda 로그 확인)" } },
+            "ResultPath": "$.analysis",
+            "Next": "Verify"
+          },
+          "Verify": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": { "FunctionName": "${verify_arn}", "Payload": { "ticket.$": "$.ticket", "analysis.$": "$.analysis.out" } },
+            "ResultSelector": { "out.$": "$.Payload" },
+            "ResultPath": "$.verify",
+            "TimeoutSeconds": 900,
+            "Retry": [
+              { "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"], "IntervalSeconds": 10, "MaxAttempts": 2, "BackoffRate": 2 }
+            ],
+            "Catch": [ { "ErrorEquals": ["States.ALL"], "ResultPath": "$.verify_error", "Next": "VerifyFailed" } ],
+            "Next": "Attach"
+          },
+          "VerifyFailed": {
+            "Type": "Pass",
+            "Result": { "out": { "status": "ERROR", "reason": "Verify 단계 실패 (Lambda 로그에서 인덱스 되돌리기 확인)" } },
+            "ResultPath": "$.verify",
+            "Next": "Attach"
+          },
+          "Attach": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": { "FunctionName": "${attach_arn}", "Payload": { "ticket.$": "$.ticket", "analysis.$": "$.analysis.out", "verify.$": "$.verify.out" } },
+            "ResultSelector": { "out.$": "$.Payload" },
+            "ResultPath": "$.attach",
+            "Retry": [
+              { "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"], "IntervalSeconds": 5, "MaxAttempts": 3, "BackoffRate": 2 }
+            ],
+            "Catch": [ { "ErrorEquals": ["States.ALL"], "ResultPath": "$.attach_error", "Next": "AttachFailed" } ],
+            "Next": "ItemDone"
+          },
+          "AttachFailed": {
+            "Type": "Pass",
+            "Parameters": { "ticket_id.$": "$.ticket.ticket_id", "note": "결과 첨부 실패 (Lambda 로그 확인)" },
+            "End": true
+          },
+          "ItemDone": {
+            "Type": "Pass",
+            "Parameters": { "ticket_id.$": "$.ticket.ticket_id", "note.$": "$.attach.out.note" },
+            "End": true
+          }
+        }
+      },
+      "ResultPath": "$.analyzed",
+      "Next": "Track"
+    },
+    "Track": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": { "FunctionName": "${track_arn}", "Payload": { "log_date.$": "$.collect.out.log_date" } },
+      "ResultSelector": { "out.$": "$.Payload" },
+      "ResultPath": "$.track",
+      "Retry": [
+        { "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"], "IntervalSeconds": 5, "MaxAttempts": 3, "BackoffRate": 2 }
+      ],
+      "Catch": [ { "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "NotifyFailure" } ],
+      "Next": "Publish"
+    },
+    "Publish": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": { "FunctionName": "${publish_arn}", "Payload": { "log_date.$": "$.collect.out.log_date" } },
+      "ResultSelector": { "out.$": "$.Payload" },
+      "ResultPath": "$.publish",
+      "Retry": [
+        { "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"], "IntervalSeconds": 5, "MaxAttempts": 2, "BackoffRate": 2 }
+      ],
+      "Catch": [ { "ErrorEquals": ["States.ALL"], "ResultPath": "$.publish_error", "Next": "NotifyPublishFailure" } ],
+      "Next": "IsWeekly"
+    },
+    "NotifyPublishFailure": {
+      "Type": "Task",
+      "Comment": "발행 실패는 알리고, 리포트 단계는 계속 진행한다.",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${alert_topic_arn}",
+        "Subject": "slowq 발행 실패",
+        "Message.$": "States.Format('slowq 발행 단계 실패 (log_date {}): {}', $.collect.out.log_date, States.JsonToString($.publish_error))"
+      },
+      "ResultPath": null,
+      "Retry": [ { "ErrorEquals": ["States.ALL"], "IntervalSeconds": 5, "MaxAttempts": 2, "BackoffRate": 2 } ],
+      "Next": "IsWeekly"
+    },
+    "IsWeekly": {
+      "Type": "Choice",
+      "Choices": [ { "Variable": "$.collect.out.weekly", "BooleanEquals": true, "Next": "Report" } ],
+      "Default": "Done"
+    },
+    "Report": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": { "FunctionName": "${report_arn}", "Payload": { "log_date.$": "$.collect.out.log_date" } },
+      "ResultSelector": { "out.$": "$.Payload" },
+      "ResultPath": "$.report",
+      "Retry": [
+        { "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"], "IntervalSeconds": 5, "MaxAttempts": 3, "BackoffRate": 2 }
+      ],
+      "Catch": [ { "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "NotifyFailure" } ],
+      "Next": "Done"
+    },
+    "Done": { "Type": "Succeed" },
+    "NotifyFailure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${alert_topic_arn}",
+        "Subject": "slowq 일일 파이프라인 실패",
+        "Message.$": "States.Format('slowq 일일 파이프라인 실패: {}', States.JsonToString($.error))"
+      },
+      "ResultPath": null,
+      "Retry": [ { "ErrorEquals": ["States.ALL"], "IntervalSeconds": 5, "MaxAttempts": 2, "BackoffRate": 2 } ],
+      "Next": "Failed"
+    },
+    "Failed": { "Type": "Fail", "Error": "SlowqPipelineFailed", "Cause": "앞 단계 실패 — SNS 알림과 실행 기록을 확인하세요" }
+  }
+}

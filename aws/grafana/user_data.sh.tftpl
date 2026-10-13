@@ -1,0 +1,79 @@
+#!/bin/bash
+# Grafana OSS 설치 · 프로비저닝 (Amazon Linux 2023, arm64). Terraform templatefile 로 값이 채워진다.
+# - DB · 관리자 비밀번호는 인스턴스 역할로 Secrets Manager 에서 읽어 파일(권한 640)로만 둔다.
+# - 대시보드 JSON 은 lab/grafana 가 만든 것을 S3 에서 받는다.
+set -euo pipefail
+exec > >(tee -a /var/log/slowq-grafana-setup.log) 2>&1
+
+REGION="${region}"
+
+cat > /etc/yum.repos.d/grafana.repo <<'REPO'
+[grafana]
+name=grafana
+baseurl=https://rpm.grafana.com
+repo_gpgcheck=1
+enabled=1
+gpgcheck=1
+gpgkey=https://rpm.grafana.com/gpg.key
+sslverify=1
+sslcacert=/etc/pki/tls/certs/ca-bundle.crt
+REPO
+dnf install -y grafana jq
+
+secret() { aws secretsmanager get-secret-value --region "$REGION" --secret-id "$1" --query SecretString --output text; }
+
+install -d -m 750 -o root -g grafana /etc/grafana/secrets
+secret "${ds_secret_arn}" | jq -r .password > /etc/grafana/secrets/ds_password
+DS_USER=$(secret "${ds_secret_arn}" | jq -r .username)
+secret "${admin_secret_arn}" | jq -r .password > /etc/grafana/secrets/admin_password
+curl -fsSL "https://truststore.pki.rds.amazonaws.com/$REGION/$REGION-bundle.pem" -o /etc/grafana/secrets/rds-ca.pem
+chown root:grafana /etc/grafana/secrets/* && chmod 640 /etc/grafana/secrets/*
+
+# 관리자 비밀번호 · 익명 접근 끔 · 가입 끔
+mkdir -p /etc/systemd/system/grafana-server.service.d
+cat > /etc/systemd/system/grafana-server.service.d/slowq.conf <<CONF
+[Service]
+Environment=GF_SECURITY_ADMIN_PASSWORD__FILE=/etc/grafana/secrets/admin_password
+Environment=GF_AUTH_ANONYMOUS_ENABLED=false
+Environment=GF_USERS_ALLOW_SIGN_UP=false
+Environment=GF_ANALYTICS_REPORTING_ENABLED=false
+CONF
+
+# 데이터 소스 (MySQL, TLS + RDS CA 검증, 읽기 전용 계정)
+cat > /etc/grafana/provisioning/datasources/slowq.yml <<YML
+apiVersion: 1
+datasources:
+  - name: slowq-store
+    uid: slowq-store
+    type: mysql
+    url: ${db_host}:3306
+    user: $DS_USER
+    jsonData:
+      database: ${db_name}
+      tlsAuthWithCACert: true
+      tlsSkipVerify: false
+    secureJsonData:
+      password: \$__file{/etc/grafana/secrets/ds_password}
+      tlsCACert: \$__file{/etc/grafana/secrets/rds-ca.pem}
+    isDefault: true
+YML
+
+cat > /etc/grafana/provisioning/dashboards/slowq.yml <<'YML'
+apiVersion: 1
+providers:
+  - name: slowq
+    folder: 슬로우 쿼리
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards
+YML
+install -d -o grafana -g grafana /var/lib/grafana/dashboards
+aws s3 cp --region "$REGION" "s3://${bucket}/${dashboard_key}" /var/lib/grafana/dashboards/slowquery.json
+chown grafana:grafana /var/lib/grafana/dashboards/slowquery.json
+
+chown root:grafana /etc/grafana/provisioning/datasources/slowq.yml /etc/grafana/provisioning/dashboards/slowq.yml
+chmod 640 /etc/grafana/provisioning/datasources/slowq.yml /etc/grafana/provisioning/dashboards/slowq.yml
+
+systemctl daemon-reload
+systemctl enable --now grafana-server
+echo "slowq grafana setup done"
