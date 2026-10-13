@@ -3,6 +3,25 @@
 강의 「AI가 매일 잡아내는 슬로우 쿼리 — Claude Code로 만드는 MySQL 튜닝 자동화 시스템」의 실습 코드입니다.
 모든 데이터는 강의용으로 만든 합성 데이터입니다.
 
+## 처음이라면 — 이 폴더 사용법
+
+이 폴더 하나로 **MySQL 두 대 + Grafana + 자동화 스크립트**가 내 PC 에서 돌아갑니다. 처음 받은 분은 아래 순서만 따라오면 됩니다.
+
+1. 아래 **1장 띄우기** → **2장 14일 운영 상황 재현** 까지 하면 Grafana 에 2주치 데이터가 보입니다.
+2. 그다음은 **3장 표**를 보고 "어느 폴더에서 어떤 명령을 치는지" 확인하며 진행합니다.
+3. 전체 여정을 한 장으로 보고 싶으면 [전체 순서도 (GETTING_STARTED)](../docs/GETTING_STARTED.md) 를 먼저 보세요.
+
+| 하위 폴더 | 무엇이 들어 있나 | 안내 |
+|---|---|---|
+| `mysql/` | MySQL 설정 · 샘플 데이터 · 저장소(`dba`) 스키마 | [mysql/README.md](mysql/README.md) |
+| `scripts/` | 부하 · 수집 · 검출 · 티켓 · 발행 · 반영 · 리포트 스크립트 | [scripts/README.md](scripts/README.md) |
+| `ai/` | Claude Code 분석 규칙 · 읽기 전용 MCP 서버 · 실측 검증 | [ai/README.md](ai/README.md) |
+| `sql/` | 7~14강 실습 SQL · 남은 인덱스 정리용 `reset.sql` | [sql/README.md](sql/README.md) |
+| `grafana/` | 대시보드 JSON 과 생성기 · 데이터 소스 설정 | [grafana/README.md](grafana/README.md) |
+| `tests/` | 운영 반영 · 리포트 로직 테스트 · 수집기 통합 테스트 | [tests/README.md](tests/README.md) |
+
+잘 됐는지 3가지만 확인하면 됩니다: `docker compose ps` 에 컨테이너 3개(`lab-shop-db` · `lab-order-db` · `lab-grafana`)가 보이고, `simulate.py` 끝에 **강의 날짜 → 내 날짜** 표가 나오고, http://localhost:3000/d/lab-slowquery 에 그래프가 그려지면 준비 끝입니다.
+
 ## 1. 띄우기
 
 준비물: Docker, **Python 3.10 이상**(macOS 기본 python3 는 3.9 → `brew install python@3.12` 후 `python3.12` 사용, Ubuntu 는 `sudo apt install python3-venv`), Claude Code(23강부터 · 처음 한 번 `claude` 를 실행해 로그인).

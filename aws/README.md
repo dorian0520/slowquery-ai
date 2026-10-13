@@ -9,6 +9,29 @@ AWS 관리형 서비스로 옮긴 버전입니다. Terraform 한 번으로 VPC �
 
 > 이 폴더의 코드는 정적 검증(`scripts/validate.sh`)까지만 거쳤습니다. 실제 AWS 계정에 배포해 끝까지 돌려 본 기록은 아직 없습니다. 아래 「제한 사항」을 먼저 읽어 주세요.
 
+## 처음이라면 — 이 폴더 사용법
+
+- **비용이 듭니다.** `terraform apply` 순간부터 하루 약 $3 정도가 나갑니다(2장). 실습이 끝나면 반드시 `terraform destroy` 합니다. 로컬 `lab/` 실습을 먼저 끝까지 해 보고 오는 것을 권합니다.
+- **돈이 들지 않는 단계부터**: 아래 순서 중 1~2번은 AWS 계정 없이도 됩니다.
+  1. `aws` 폴더에서 `scripts/build.sh` → 마지막에 `function.zip` · `layer.zip` 해시 두 줄이 나오면 성공
+  2. `aws` 폴더에서 `scripts/validate.sh` → 끝에 `PASS  …` 목록이 나오고 `FAIL` 이 없으면 성공
+  3. `aws/terraform` 에서 `terraform init` → `plan` → `apply` (여기부터 과금)
+  4. `terraform output -raw next_steps` 가 알려 주는 명령으로 `init-db` → 상태 머신 실행 → Grafana 확인
+  5. 다 봤으면 `terraform destroy`
+- **하위 폴더 안내**
+
+  | 폴더 | 무엇 | 안내 |
+  |---|---|---|
+  | `terraform/` | VPC · RDS · Lambda · Step Functions · Grafana EC2 를 만드는 IaC | [terraform/README.md](terraform/README.md) |
+  | `lambda/` | Lambda 핸들러 코드(`slowq_aws`) · 레이어 의존성 | [lambda/README.md](lambda/README.md) |
+  | `statemachine/` | 하루 배치 상태 머신 정의(ASL) | [statemachine/README.md](statemachine/README.md) |
+  | `scripts/` | 패키지 빌드 · 정적 검증 스크립트 | [scripts/README.md](scripts/README.md) |
+  | `sql/` | AWS 용 저장소 스키마 | [sql/README.md](sql/README.md) |
+  | `grafana/` | Grafana EC2 설치 스크립트 템플릿 | [grafana/README.md](grafana/README.md) |
+  | `tests/` | 핸들러 단위 테스트 (AWS 없이 실행) | [tests/README.md](tests/README.md) |
+
+- 전체 여정 그림은 [docs/GETTING_STARTED.md](../docs/GETTING_STARTED.md) 의 AWS 경로를 보세요.
+
 ## 1. 구조
 
 ```mermaid

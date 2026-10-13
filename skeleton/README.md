@@ -16,6 +16,38 @@
                                          tickets.track(해결 · 재발) ─▶ Grafana(저장소 조회)
 ```
 
+## 처음이라면 — 이 폴더 사용법
+
+- **언제 쓰나**: `lab/` 실습을 한 번 끝까지 돌려 본 뒤, 같은 흐름(수집 → 검출 → 발행 → 추적)을 **내 MySQL 에 붙일 때** 씁니다. 실습만 할 거라면 이 폴더는 건너뛰어도 됩니다.
+- **명령은 모두 `skeleton` 폴더에서** 칩니다. `python -m slowq` 는 현재 폴더의 `slowq/` 패키지를 찾고, `--config` 기본값 `config.ini` 도 현재 폴더 기준입니다.
+- **순서**: 아래 1장(설치 · 설정 · `init-schema` · CMDB 등록) → 2장(`daily` 를 두 번 — 첫 번째는 기준 스냅숏만) → cron 등록. 실습 DB 로 먼저 연습하려면 1장의 「강의 실습 환경에서 돌려 보기」를 따릅니다.
+- **정상 출력 예** (숫자는 환경마다 다릅니다)
+
+  ```
+  $ python -m slowq --config config.ini init-schema
+  스키마 적용 완료
+  $ python -m slowq --config config.ini daily --date 2026-10-12
+  수집 order-db: 0개 지문          ← 첫 실행은 기준 스냅숏만 남겨 0개가 정상
+  수집 shop-db: 0개 지문
+  검출 0건
+  신규 티켓 0건 · 상태 변경 0건
+  ```
+
+  두 번째 실행부터 `수집 shop-db: 27개 지문` 처럼 숫자가 생기고, 티켓이 발행되면 `# dry-run (보내지 않음) {...}` 줄이 함께 찍힙니다.
+- **자주 막히는 곳**: `비밀번호가 없습니다 (… ) — password_env 환경 변수를 확인하세요` → `export SLOWQ_STORE_PASSWORD=… SLOWQ_TARGET_PASSWORD=…` 를 같은 터미널에서 했는지 확인. `FileNotFoundError: config.ini` → `cp config.example.ini config.ini` 를 `skeleton` 에서 했는지 확인. `No module named slowq` → `skeleton` 폴더 밖에서 실행한 것입니다.
+
+`slowq/` 패키지의 파일 안내 (모듈별 하는 일은 아래 3장 표):
+
+| 파일 | 역할 | 언제 보나 |
+|---|---|---|
+| `slowq/__main__.py` · `cli.py` | `python -m slowq` 진입점 · `daily` / `init-schema` 명령과 옵션(`--config`, `--date`) | 명령이 무엇을 순서대로 부르는지 볼 때 |
+| `slowq/config.py` | ini 읽기 · `password_env` 가 가리키는 환경 변수에서 비밀번호 읽기 | 설정 값이 안 먹을 때 |
+| `slowq/db.py` | 접속 · `schema.sql` 적용 | 접속 오류 · 스키마 적용 문제 |
+| `slowq/collect.py` · `detect.py` · `tickets.py` · `publish.py` | `daily` 가 부르는 4단계 | 동작을 바꾸고 싶을 때 (3장 표) |
+| `slowq/analyze.py` · `verify.py` · `mask.py` | AI 분석 · 실측 검증 · 마스킹 (선택 모듈, `daily` 에 연결돼 있지 않음) | 진단 단계를 붙일 때 |
+
+테스트 사용법은 [tests/README.md](tests/README.md), 전체 여정은 [docs/GETTING_STARTED.md](../docs/GETTING_STARTED.md) 를 보세요.
+
 ## 1. 설치 · 설정
 ```bash
 pip install -r requirements.txt
