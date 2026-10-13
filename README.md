@@ -35,6 +35,10 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 Grafana: http://localhost:3000 (로그인 없이 보기). 자세한 순서는 [`lab/README.md`](lab/README.md), 내 환경에 붙이는 법은 [`skeleton/README.md`](skeleton/README.md) 를 보세요.
 
+## 문서
+
+단계별 흐름도와 상세 설명(설정 · 데이터 · 대시보드 · 수집 · 집계 · 진단 · 티켓 · 추적)은 [`docs/README.md`](docs/README.md) 에 있습니다.
+
 ## 주의
 
 - `lab/` 의 계정 · 비밀번호는 **로컬 실습 전용**입니다. 운영 환경에 그대로 쓰지 마세요.
