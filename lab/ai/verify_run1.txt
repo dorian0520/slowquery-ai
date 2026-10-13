@@ -1,0 +1,12 @@
+[5e9245c3] 통과  ALTER TABLE orders ADD INDEX ix_orders_user_ordered (user_id, ordered_at)
+    시간 261.5 ms → 0.15 ms (1785배) · 결과 동일 True
+    전: -> Table scan on orders  (cost=201102 rows=1.99e+6) (actual time=0.0711..255 rows=2e+6 loo
+    후: -> Index lookup on orders using ix_orders_user_ordered (user_id=1001) (reverse)  (cost=3.5
+[f54ce51c] 탈락  ALTER TABLE orders ADD INDEX ix_orders_ordered (ordered_at, order_id)
+    시간 524.2 ms → 529.10 ms (1배) · 결과 동일 True
+    전: -> Table scan on orders  (cost=201102 rows=1.99e+6) (actual time=0.0675..222 rows=2e+6 loo
+    후: -> Table scan on orders  (cost=201102 rows=1.99e+6) (actual time=0.135..217 rows=2e+6 loop
+[60cd58c2] 통과  ALTER TABLE orders ADD INDEX ix_orders_coupon_amount (coupon_code, amount)
+    시간 175.6 ms → 0.18 ms (1002배) · 결과 동일 True
+    전: -> Table scan on orders  (cost=201102 rows=1.99e+6) (actual time=0.0643..172 rows=2e+6 loo
+    후: -> Covering index lookup on orders using ix_orders_coupon_amount (coupon_code='CPN29')  (c

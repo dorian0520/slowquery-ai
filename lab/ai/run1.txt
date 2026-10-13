@@ -1,0 +1,49 @@
+```json
+[
+  {
+    "qhash": "5e9245c3092ff8032ccbe00d8fa31da9",
+    "cause": "orders 테이블에는 PRIMARY(order_id) 인덱스만 있고 user_id 인덱스가 없습니다. 그래서 사용자 한 명의 주문을 찾을 때마다 전체 테이블을 읽고 ordered_at으로 정렬합니다.",
+    "evidence": [
+      "table_info: 인덱스는 PRIMARY(order_id) 하나, approx_rows=1,993,774",
+      "explain(user_id=1, LIMIT 20): Table scan on orders (cost=201068 rows=1.99e+6) → Filter: (orders.user_id = 1) → Sort: orders.ordered_at DESC",
+      "2026-10-12 슬로우 로그: exec_cnt=44, avg_sec=0.2692, total_sec=11.85, rows_examined=88,000,440 (1회 평균 약 2,000,010행으로 테이블 전체 행 수와 비슷)",
+      "3개 쿼리 중 총 부하 1위(11.85초)",
+      "query_trend: 10-07~10-09에는 avg_sec=0.0001이었다가 10-10부터 0.27초대로 돌아옴. 그 기간에 인덱스가 있었다가 삭제된 것인지 등 원인은 확인 필요"
+    ],
+    "proposal": "ALTER TABLE orders ADD INDEX ix_orders_user_ordered (user_id, ordered_at);",
+    "expected": "(예상) user_id = 조건으로 범위를 좁히고 ordered_at 역순으로 읽으면 Sort 단계가 없어집니다. 사용자 한 명의 주문 건수 + LIMIT 정도의 행만 읽게 되어 1회 약 200만 행 → 수십~수백 행으로 줄어들 것으로 봅니다.",
+    "confidence": "high",
+    "verify": "복제 DB에서 EXPLAIN ANALYZE를 인덱스 추가 전후로 비교합니다. Table scan과 Sort가 사라지고 Index lookup on orders using ix_orders_user_ordered (reverse)로 바뀌는지, 실제 rows가 사용자별 주문 건수 수준인지 봅니다. 10-07~10-09에 avg_sec가 0.0001이었던 이유(그때 인덱스 이력)도 운영 쪽에 확인합니다."
+  },
+  {
+    "qhash": "f54ce51c10b421111d1ef8531c86b405",
+    "cause": "WHERE 조건 없이 ordered_at으로 정렬한 뒤 OFFSET으로 깊은 페이지를 읽는 쿼리입니다. ordered_at 인덱스가 없어서 매번 전체 테이블을 읽고 offset+limit 행까지 정렬합니다.",
+    "evidence": [
+      "table_info: ordered_at 인덱스 없음(PRIMARY만 있음)",
+      "explain(LIMIT 100000, 20): Table scan on orders (rows=1.99e+6) → Sort: orders.ordered_at DESC, limit input to 100020 row(s) per chunk → Limit/Offset: 20/100000",
+      "2026-10-12: exec_cnt=6, avg_sec=0.5463(3개 중 1회당 가장 느림), rows_examined=13,200,120(1회 평균 약 2,200,020행)",
+      "query_trend: 14일 내내 avg_sec 0.54~0.58로 비슷함(최근 악화한 것이 아니라 원래 구조가 느림)",
+      "query_text가 'LIMIT ?, ...'로 잘려 있어 offset 형태로 가정하고 테스트 값 100000, 20으로 explain함. 실제 offset 크기는 확인 필요"
+    ],
+    "proposal": "1) ALTER TABLE orders ADD INDEX ix_orders_ordered (ordered_at, order_id); 2) 쿼리를 keyset 페이지네이션으로 바꿉니다: SELECT order_id, user_id, amount FROM orders WHERE (ordered_at, order_id) < (?, ?) ORDER BY ordered_at DESC, order_id DESC LIMIT ?",
+    "expected": "(예상) 인덱스만 추가해도 Sort는 없어지지만, OFFSET을 쓰는 한 offset 행 수만큼은 계속 읽습니다. keyset으로 바꾸면 페이지 깊이와 관계없이 LIMIT 행 수 정도만 읽게 될 것으로 봅니다.",
+    "confidence": "medium",
+    "verify": "복제 DB에서 EXPLAIN ANALYZE를 세 가지 경우로 비교합니다: 인덱스 추가 전, 인덱스만 추가(OFFSET 유지), 인덱스+keyset. offset이 작을 때·클 때 각각 실제 rows와 시간을 봅니다. 애플리케이션이 keyset 방식(마지막으로 본 ordered_at, order_id 전달)을 받아들일 수 있는지, 원본 쿼리 전문은 어떤지도 확인합니다. 행 비교 (a,b)<(?,?)가 인덱스 range로 풀리는지도 EXPLAIN으로 확인하고, 안 되면 OR 형태로 풀어 씁니다."
+  },
+  {
+    "qhash": "60cd58c264505a96829053fba16859a7",
+    "cause": "coupon_code 인덱스가 없어서 쿠폰 하나를 집계할 때마다 전체 테이블을 읽습니다.",
+    "evidence": [
+      "table_info: coupon_code varchar(20) DEFAULT NULL, 인덱스 없음",
+      "explain(coupon_code='TEST10'): Table scan on orders (cost=201068 rows=1.99e+6) → Filter (rows=199377 추정) → Aggregate (cost=221006)",
+      "2026-10-12: exec_cnt=16, avg_sec=0.1774, rows_examined=32,000,000(1회 평균 2,000,000행)",
+      "query_trend: 10-06에 exec_cnt=61(평소 15~18의 약 4배)로 급증. 이벤트나 배치와 관련 있는지는 확인 필요",
+      "Filter rows=199377(전체의 10%)은 인덱스·통계가 없을 때 옵티마이저가 넣는 기본 추정값으로 보입니다. 실제 coupon_code의 선택도(고유값 수, NULL 비율)는 확인 필요. 선택도가 낮은 컬럼이면 인덱스를 타지 못하는 패턴에 해당할 수 있음"
+    ],
+    "proposal": "ALTER TABLE orders ADD INDEX ix_orders_coupon_amount (coupon_code, amount);  -- 커버링 인덱스로 COUNT/SUM을 테이블 접근 없이 처리",
+    "expected": "(예상) 쿠폰 하나에 해당하는 행만 인덱스에서 읽고(커버링) 테이블 전체 스캔이 없어집니다. 효과 크기는 쿠폰별 주문 건수에 따라 달라집니다. 특정 쿠폰이 전체 주문의 큰 비중을 차지하면 효과가 작습니다.",
+    "confidence": "medium",
+    "verify": "복제 DB에서 SELECT coupon_code, COUNT(*) FROM orders GROUP BY coupon_code로 분포와 NULL 비율을 먼저 확인합니다. 그다음 EXPLAIN ANALYZE를 전후 비교해 Covering index lookup이 쓰이는지, 실제 rows가 얼마인지 보고, 가장 많이 쓰인 쿠폰 값으로도 효과를 확인합니다. 10-06 급증 원인도 확인합니다."
+  }
+]
+```

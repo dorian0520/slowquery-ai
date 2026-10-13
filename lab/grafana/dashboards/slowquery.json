@@ -1,0 +1,359 @@
+{
+ "uid": "lab-slowquery",
+ "title": "슬로우 쿼리 운영 대시보드 (실습)",
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "time": {
+  "from": "now-14d",
+  "to": "now"
+ },
+ "panels": [
+  {
+   "id": 1,
+   "title": "검출된 슬로우 쿼리",
+   "type": "stat",
+   "datasource": {
+    "type": "mysql",
+    "uid": "lab-dba"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "lab-dba"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "format": "table",
+     "rawSql": "SELECT COUNT(*) AS cnt FROM slow_digest_daily d JOIN cmdb_cluster c ON c.cluster = d.cluster WHERE d.cluster IN (${cluster:sqlstring}) AND c.realm IN (${realm:sqlstring}) AND c.tag IN (${tag:sqlstring}) AND d.avg_sec >= ${min_sec} AND d.exec_cnt >= ${min_q} AND d.log_date = '${log_date}'"
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "title": "총 부하 (초)",
+   "type": "stat",
+   "datasource": {
+    "type": "mysql",
+    "uid": "lab-dba"
+   },
+   "gridPos": {
+    "x": 6,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "lab-dba"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "format": "table",
+     "rawSql": "SELECT ROUND(SUM(d.total_sec)) AS sec FROM slow_digest_daily d JOIN cmdb_cluster c ON c.cluster = d.cluster WHERE d.cluster IN (${cluster:sqlstring}) AND c.realm IN (${realm:sqlstring}) AND c.tag IN (${tag:sqlstring}) AND d.avg_sec >= ${min_sec} AND d.exec_cnt >= ${min_q} AND d.log_date = '${log_date}'"
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "title": "열린 티켓",
+   "type": "stat",
+   "datasource": {
+    "type": "mysql",
+    "uid": "lab-dba"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "lab-dba"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "format": "table",
+     "rawSql": "SELECT COUNT(*) FROM tuning_ticket WHERE status IN ('OPEN','IN_PROGRESS','REOPENED') AND cluster IN (${cluster:sqlstring})"
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "title": "해결 확인된 티켓",
+   "type": "stat",
+   "datasource": {
+    "type": "mysql",
+    "uid": "lab-dba"
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 0,
+    "w": 6,
+    "h": 4
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "lab-dba"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "format": "table",
+     "rawSql": "SELECT COUNT(*) FROM tuning_ticket WHERE status='RESOLVED' AND cluster IN (${cluster:sqlstring})"
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "title": "슬로우 쿼리 순위 (${log_date}, 정렬: ${sort})",
+   "type": "table",
+   "datasource": {
+    "type": "mysql",
+    "uid": "lab-dba"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 4,
+    "w": 24,
+    "h": 10
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "lab-dba"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "format": "table",
+     "rawSql": "SELECT d.cluster AS 클러스터, c.tag AS 업무, d.qhash AS qhash, d.exec_cnt AS 실행횟수,\n                     ROUND(d.total_sec,1) AS 총부하초, ROUND(d.avg_sec,3) AS 평균초, ROUND(d.max_sec,3) AS 최대초,\n                     d.rows_examined AS 읽은행수, IFNULL(t.status,'-') AS 티켓, c.owner_team AS 담당팀,\n                     LEFT(d.query_text, 120) AS 쿼리\n              FROM slow_digest_daily d JOIN cmdb_cluster c ON c.cluster = d.cluster LEFT JOIN tuning_ticket t ON t.cluster=d.cluster AND t.qhash=d.qhash WHERE d.cluster IN (${cluster:sqlstring}) AND c.realm IN (${realm:sqlstring}) AND c.tag IN (${tag:sqlstring}) AND d.avg_sec >= ${min_sec} AND d.exec_cnt >= ${min_q}\n                AND d.log_date = '${log_date}'\n              ORDER BY ${sort} DESC LIMIT 50"
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "title": "총 부하 상위 5개 쿼리 추이 (최근 ${days}일)",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "lab-dba"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 14,
+    "w": 12,
+    "h": 9
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "lab-dba"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "format": "time_series",
+     "rawSql": "SELECT UNIX_TIMESTAMP(d.log_date) AS time, CONCAT(d.cluster, ' ', LEFT(d.qhash, 8)) AS metric, d.total_sec AS value\n              FROM slow_digest_daily d JOIN cmdb_cluster c ON c.cluster = d.cluster WHERE d.cluster IN (${cluster:sqlstring}) AND c.realm IN (${realm:sqlstring}) AND c.tag IN (${tag:sqlstring}) AND d.avg_sec >= ${min_sec} AND d.exec_cnt >= ${min_q} AND d.log_date >= CURDATE() - INTERVAL ${days} DAY\n                AND d.qhash IN (SELECT qhash FROM (SELECT qhash FROM slow_digest_daily\n                  WHERE log_date >= CURDATE() - INTERVAL ${days} DAY GROUP BY qhash\n                  ORDER BY SUM(total_sec) DESC LIMIT 5) x)\n              ORDER BY 1"
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "title": "선택한 쿼리 평균 실행 시간 (${qhash})",
+   "type": "timeseries",
+   "datasource": {
+    "type": "mysql",
+    "uid": "lab-dba"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 14,
+    "w": 12,
+    "h": 9
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "lab-dba"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "format": "time_series",
+     "rawSql": "SELECT UNIX_TIMESTAMP(log_date) AS time, cluster AS metric, avg_sec AS value\n             FROM slow_digest_daily WHERE qhash = '${qhash}'\n               AND log_date >= CURDATE() - INTERVAL ${days} DAY ORDER BY 1"
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "title": "티켓 추적 — 개선 효과",
+   "type": "table",
+   "datasource": {
+    "type": "mysql",
+    "uid": "lab-dba"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 23,
+    "w": 24,
+    "h": 9
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "mysql",
+      "uid": "lab-dba"
+     },
+     "rawQuery": true,
+     "editorMode": "code",
+     "format": "table",
+     "rawSql": "SELECT t.ticket_id AS 번호, t.cluster AS 클러스터, t.qhash, t.status AS 상태, t.owner AS 담당자,\n                    ROUND(t.baseline_avg_sec,3) AS 기준평균초,\n                    (SELECT ROUND(d.avg_sec,4) FROM slow_digest_daily d WHERE d.cluster = t.cluster AND d.qhash = t.qhash\n                       AND d.log_date = '${log_date}') AS 현재평균초,   -- 해결 당시 값이 아니라 선택한 일자 값\n                    CASE WHEN t.status = 'RESOLVED' THEN ROUND(100*(1 - t.after_avg_sec / t.baseline_avg_sec)) END AS 개선율, DATE_FORMAT(t.created_at,'%m-%d') AS 발행, IFNULL(DATE_FORMAT(t.resolved_at,'%m-%d'),'-') AS 해결\n             FROM tuning_ticket t WHERE t.cluster IN (${cluster:sqlstring}) ORDER BY t.updated_at DESC"
+    }
+   ]
+  }
+ ],
+ "templating": {
+  "list": [
+   {
+    "name": "realm",
+    "label": "환경",
+    "type": "query",
+    "datasource": {
+     "type": "mysql",
+     "uid": "lab-dba"
+    },
+    "query": "SELECT DISTINCT realm FROM cmdb_cluster",
+    "refresh": 1,
+    "multi": true,
+    "includeAll": true,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    }
+   },
+   {
+    "name": "tag",
+    "label": "업무",
+    "type": "query",
+    "datasource": {
+     "type": "mysql",
+     "uid": "lab-dba"
+    },
+    "query": "SELECT DISTINCT tag FROM cmdb_cluster WHERE realm IN (${realm:sqlstring})",
+    "refresh": 1,
+    "multi": true,
+    "includeAll": true,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    }
+   },
+   {
+    "name": "cluster",
+    "label": "클러스터",
+    "type": "query",
+    "datasource": {
+     "type": "mysql",
+     "uid": "lab-dba"
+    },
+    "query": "SELECT cluster FROM cmdb_cluster WHERE realm IN (${realm:sqlstring}) AND tag IN (${tag:sqlstring})",
+    "refresh": 1,
+    "multi": true,
+    "includeAll": true,
+    "current": {
+     "text": "All",
+     "value": "$__all"
+    }
+   },
+   {
+    "name": "log_date",
+    "label": "일자",
+    "type": "query",
+    "datasource": {
+     "type": "mysql",
+     "uid": "lab-dba"
+    },
+    "query": "SELECT DISTINCT DATE_FORMAT(log_date,'%Y-%m-%d') FROM slow_digest_daily ORDER BY 1 DESC",
+    "refresh": 1,
+    "multi": false,
+    "includeAll": false,
+    "current": {}
+   },
+   {
+    "name": "min_sec",
+    "label": "최소 평균(초)",
+    "type": "custom",
+    "query": "0,0.1,0.2,0.5,1",
+    "current": {
+     "text": "0.2",
+     "value": "0.2"
+    }
+   },
+   {
+    "name": "min_q",
+    "label": "최소 횟수",
+    "type": "custom",
+    "query": "1,5,10,30",
+    "current": {
+     "text": "5",
+     "value": "5"
+    }
+   },
+   {
+    "name": "sort",
+    "label": "정렬",
+    "type": "custom",
+    "query": "load : d.total_sec,count : d.exec_cnt,avg : d.avg_sec",
+    "current": {
+     "text": "load",
+     "value": "load"
+    }
+   },
+   {
+    "name": "days",
+    "label": "기간(일)",
+    "type": "custom",
+    "query": "7,14,30",
+    "current": {
+     "text": "14",
+     "value": "14"
+    }
+   },
+   {
+    "name": "qhash",
+    "label": "쿼리",
+    "type": "query",
+    "datasource": {
+     "type": "mysql",
+     "uid": "lab-dba"
+    },
+    "query": "SELECT qhash FROM slow_digest_daily WHERE log_date = '${log_date}' ORDER BY total_sec DESC LIMIT 20",
+    "refresh": 1,
+    "multi": false,
+    "includeAll": false,
+    "current": {}
+   }
+  ]
+ }
+}

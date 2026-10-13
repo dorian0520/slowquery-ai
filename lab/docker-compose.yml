@@ -1,0 +1,40 @@
+# 강의 실습 환경: MySQL 8.0 (클러스터 2개 흉내) + Grafana
+# 실행: docker compose up -d   /   접속: Grafana http://localhost:3000 (admin / admin)
+services:
+  shop-db:            # 실습용 "서비스 A" DB (합성 쇼핑몰 데이터 적재)
+    image: mysql:8.0
+    container_name: lab-shop-db
+    environment:
+      MYSQL_ROOT_PASSWORD: lab-root-pw   # 로컬 실습 전용 값
+    ports: ["127.0.0.1:3306:3306"]   # 이 PC 에서만 접속 (root 비밀번호가 공개된 실습 값)
+    volumes:
+      - ./mysql/my.cnf:/etc/mysql/conf.d/lab.cnf:ro
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+      - shop-data:/var/lib/mysql
+
+  order-db:           # 실습용 "서비스 B" DB (다중 클러스터 대시보드 실습용)
+    image: mysql:8.0
+    container_name: lab-order-db
+    environment:
+      MYSQL_ROOT_PASSWORD: lab-root-pw
+    ports: ["127.0.0.1:3307:3306"]
+    volumes:
+      - ./mysql/my.cnf:/etc/mysql/conf.d/lab.cnf:ro
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+      - order-data:/var/lib/mysql
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: lab-grafana
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on: [shop-db]
+
+volumes:
+  shop-data:
+  order-data:

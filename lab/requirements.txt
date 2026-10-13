@@ -1,0 +1,4 @@
+# 실습 스크립트 · MCP 서버 의존성 (python3 -m venv .venv && .venv/bin/pip install -r requirements.txt)
+pymysql==1.2.3
+cryptography==50.0.2   # MySQL 8.0 기본 인증(caching_sha2_password)에 필요
+mcp==2.3.0             # 24강 MCP 서버 (mcp.server.mcpserver)

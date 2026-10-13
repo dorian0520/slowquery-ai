@@ -1,0 +1,12 @@
+apiVersion: 1
+datasources:
+  - name: lab-dba
+    uid: lab-dba
+    type: mysql
+    url: shop-db:3306
+    user: lab_grafana
+    jsonData:
+      database: dba
+    secureJsonData:
+      password: lab-grafana-pw   # 로컬 실습 전용
+    isDefault: true

@@ -1,0 +1,1 @@
+{"mcpServers": {"labdb": {"command": "../.venv/bin/python", "args": ["labdb_mcp.py"]}}}
