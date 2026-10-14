@@ -6,8 +6,16 @@ ROOT=Path(__file__).resolve().parents[2]
 
 
 def check(root=ROOT):
-    proc=subprocess.run(['git','ls-files','--cached','--others','--exclude-standard','-z'],cwd=root,capture_output=True,check=True)
-    paths=[Path(p) for p in proc.stdout.decode().split('\0') if p]
+    if (root/'.git').exists():
+        proc=subprocess.run(['git','ls-files','--cached','--others','--exclude-standard','-z'],cwd=root,capture_output=True,check=True)
+        paths=[Path(p) for p in proc.stdout.decode().split('\0') if p]
+    else:
+        # GitHub ZIP / git archive로 받은 학습 자료도 Git 설치·메타데이터 없이 검사한다.
+        ignored={'.git','.terraform','.venv','__pycache__','.pytest_cache','build','htmlcov'}
+        paths=[p.relative_to(root) for p in root.rglob('*') if p.is_file()
+               and not ignored.intersection(p.relative_to(root).parts)
+               and not (p.name.endswith('.tfvars') and p.name!='example.tfvars')
+               and not any(x in p.name for x in ('.tfstate','.tfplan')) and p.name!='tfplan']
     errors=[];counts={'python':0,'json':0,'shell':0,'local_links':0,'sql_files':0,'terraform_files':0}
     for rel in sorted(set(paths)):
         file=root/rel

@@ -91,3 +91,13 @@ def test_asl_rejects_unsafe_map_concurrency(tmp_path):
     asl=json.load(open(ASL,encoding='utf-8'));asl['States']['AnalyzeEach']['MaxConcurrency']=0
     bad=tmp_path/'bad.json';bad.write_text(json.dumps(asl))
     assert any('MaxConcurrency' in e for e in load('check_asl').check(str(bad),SFN_TF))
+
+
+def test_repo_checks_unpacked_source_without_git(tmp_path):
+    (tmp_path/'demo.py').write_text('if broken syntax\n')
+    (tmp_path/'data.json').write_text('{bad json')
+    (tmp_path/'README.md').write_text('[missing](missing.txt) [external](https://example.com)')
+    build=tmp_path/'build';build.mkdir();(build/'ignored.py').write_text('invalid!')
+    counts,errors=load('check_repo').check(tmp_path)
+    assert counts['python']==0 and counts['local_links']==1
+    assert len(errors)==3 and any('missing.txt' in e for e in errors)
