@@ -78,3 +78,16 @@ def test_store_schema_superset_of_skeleton():
     sk, aws = cols(os.path.join(ROOT, "skeleton", "schema.sql")), cols(os.path.join(AWS, "sql", "02_store.sql"))
     for tbl, c in sk.items():
         assert c <= aws[tbl], (tbl, c - aws[tbl])
+
+
+def test_asl_rejects_invalid_inner_start(tmp_path):
+    asl=json.load(open(ASL,encoding='utf-8'))
+    asl['States']['AnalyzeEach']['ItemProcessor']['StartAt']='Missing'
+    bad=tmp_path/'bad.json';bad.write_text(json.dumps(asl))
+    assert any('StartAt' in e for e in load('check_asl').check(str(bad),SFN_TF))
+
+
+def test_asl_rejects_unsafe_map_concurrency(tmp_path):
+    asl=json.load(open(ASL,encoding='utf-8'));asl['States']['AnalyzeEach']['MaxConcurrency']=0
+    bad=tmp_path/'bad.json';bad.write_text(json.dumps(asl))
+    assert any('MaxConcurrency' in e for e in load('check_asl').check(str(bad),SFN_TF))

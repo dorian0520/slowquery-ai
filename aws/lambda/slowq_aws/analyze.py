@@ -19,6 +19,7 @@ from .tools import SPECS, Tools
 PROMPT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prompt.md")
 CONFIDENCE = ("high", "medium", "low")
 TOOL_OUTPUT_LIMIT = 20000          # 도구 결과 한 번에 모델로 보내는 최대 글자 수
+MAX_TOOL_CALLS = 16
 
 _bedrock = None
 
@@ -83,6 +84,8 @@ def converse_loop(client, model_id, tools, item, max_turns, max_tokens):
             tu = block.get("toolUse")
             if not tu:
                 continue
+            if usage["tool_calls"] >= MAX_TOOL_CALLS:
+                return None, usage
             usage["tool_calls"] += 1
             out, is_err = tools.call(tu.get("name"), tu.get("input"))
             text = json.dumps(common.jsonable(out), ensure_ascii=False)[:TOOL_OUTPUT_LIMIT]
@@ -109,14 +112,16 @@ def handler(event, context):
     item = event["ticket"] if "ticket" in event else event
     store = common.connect(common.env("TARGET_HOST", required=True), common.env("AI_SECRET_ARN", required=True),
                            common.env("STORE_DB", "dba"))
-    shop = common.connect(common.env("TARGET_HOST", required=True), common.env("AI_SECRET_ARN", required=True),
-                          common.env("SHOP_DB", "shop"))
+    shop = None
     try:
+        shop = common.connect(common.env("TARGET_HOST", required=True), common.env("AI_SECRET_ARN", required=True),
+                              common.env("SHOP_DB", "shop"))
         tools = Tools(store, shop, item["cluster"], common.env("SHOP_DB", "shop"))
         r = analyze(item, bedrock_client(), tools, common.env("BEDROCK_MODEL_ID", required=True),
                     int(common.env("ANALYZE_MAX_TURNS", "8")), int(common.env("ANALYZE_MAX_TOKENS", "4096")))
     finally:
         store.close()
-        shop.close()
+        if shop is not None:
+            shop.close()
     common.log.info("analyze ticket=%s status=%s usage=%s", r["ticket_id"], r["status"], r["usage"])
     return common.jsonable(r)

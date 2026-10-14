@@ -100,6 +100,10 @@ resource "aws_vpc_endpoint" "interface" {
 
 # 보안 그룹 — 서로를 참조하는 규칙은 별도 리소스로 둔다 (순환 참조 방지)
 resource "aws_security_group" "lambda" {
+  # Lambda needs its execution-role permissions while retiring the last VPC ENI.
+  # Keep policies (and their roles) until this security group can be deleted.
+  depends_on = [aws_iam_role_policy.fn]
+
   name        = "${local.p}-lambda"
   description = "slowq Lambda functions"
   vpc_id      = aws_vpc.this.id
@@ -163,4 +167,16 @@ resource "aws_vpc_security_group_ingress_rule" "endpoints_from_lambda" {
   from_port                    = 443
   to_port                      = 443
   description                  = "HTTPS from Lambda"
+}
+
+# Secrets Manager private DNS also applies to the public Grafana subnet.
+# Grafana must reach the interface endpoint rather than the public internet address.
+resource "aws_vpc_security_group_ingress_rule" "endpoints_grafana" {
+  count                        = var.enable_nat ? 0 : 1
+  security_group_id            = aws_security_group.endpoints.id
+  referenced_security_group_id = aws_security_group.grafana.id
+  ip_protocol                  = "tcp"
+  from_port                    = 443
+  to_port                      = 443
+  description                  = "Grafana to Secrets Manager private endpoint"
 }

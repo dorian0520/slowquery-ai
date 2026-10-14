@@ -158,6 +158,7 @@
       },
       "ResultPath": null,
       "Retry": [ { "ErrorEquals": ["States.ALL"], "IntervalSeconds": 5, "MaxAttempts": 2, "BackoffRate": 2 } ],
+      "Catch": [ { "ErrorEquals": ["States.ALL"], "ResultPath": "$.notification_error", "Next": "IsWeekly" } ],
       "Next": "IsWeekly"
     },
     "IsWeekly": {
@@ -188,6 +189,7 @@
       },
       "ResultPath": null,
       "Retry": [ { "ErrorEquals": ["States.ALL"], "IntervalSeconds": 5, "MaxAttempts": 2, "BackoffRate": 2 } ],
+      "Catch": [ { "ErrorEquals": ["States.ALL"], "ResultPath": "$.notification_error", "Next": "Failed" } ],
       "Next": "Failed"
     },
     "Failed": { "Type": "Fail", "Error": "SlowqPipelineFailed", "Cause": "앞 단계 실패 — SNS 알림과 실행 기록을 확인하세요" }

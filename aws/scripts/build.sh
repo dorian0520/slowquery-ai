@@ -19,14 +19,18 @@ cp -R "$ROOT/skeleton/slowq" "$BUILD/function/slowq"
 cp "$ROOT/lab/mysql/init/01_shop.sql" "$BUILD/function/sql/01_shop.sql"
 cp "$AWS_DIR/sql/02_store.sql" "$BUILD/function/sql/02_store.sql"
 
-# 2) RDS CA 묶음 (TLS 인증서 검증용). 받지 못하면 TLS 암호화만 하고 검증은 생략된다 — README 제한 사항 참고.
+# 2) RDS CA 묶음 (TLS 인증서 검증용). 일반 빌드는 받지 못하면 중단한다.
 if [ "${SKIP_CA:-0}" != "1" ]; then
   if curl -fsSL --max-time 30 https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -o "$BUILD/function/rds-ca.pem"; then
     echo "rds-ca.pem 포함"
   else
     rm -f "$BUILD/function/rds-ca.pem"
-    echo "경고: RDS CA 묶음을 받지 못했습니다 (TLS 검증 없이 암호화만)" >&2
+    echo "오류: RDS CA 묶음을 받지 못했습니다. 네트워크 확인 후 다시 빌드하세요." >&2
+    exit 1
   fi
+fi
+if [ "${SKIP_CA:-0}" = "1" ]; then
+  echo "오프라인 검사 전용: CA 없는 패키지는 DB 연결을 거부합니다." >&2
 fi
 
 # 3) 레이어 — 대상 플랫폼 휠만 (로컬 OS 와 무관하게 같은 결과)

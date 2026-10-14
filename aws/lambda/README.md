@@ -43,7 +43,7 @@ AWS 버전의 각 단계(수집 · 검출 · 티켓 · AI 분석 · 실측 검�
    python3 -m pytest -q tests
    ```
 
-   끝에 `73 passed` 가 나오면 정상입니다 ([tests/README.md](../tests/README.md)).
+   끝에 실패 없이 테스트가 통과하면 정상입니다 ([tests/README.md](../tests/README.md)).
 
 2. **코드를 고쳤다면 다시 빌드 → 배포**
 
@@ -60,7 +60,7 @@ AWS 버전의 각 단계(수집 · 검출 · 티켓 · AI 분석 · 실측 검�
      --payload '{}' --cli-binary-format raw-in-base64-out /dev/stdout
    ```
 
-   함수 결과(`{"target": "샘플 created · 계정 적용", "verify": "샘플 created · 계정 적용"}` 모양, 한글은 `\uXXXX` 로 보일 수 있음) 뒤에 `"StatusCode": 200` 이 나오면 성공입니다. 두 번째 실행부터는 `skip (이미 있음)` 이 나옵니다.
+   응답 메타데이터에 `FunctionError`가 없고 결과 JSON에 target·verify 초기화 완료가 나오는지 확인합니다. `StatusCode: 200`만으로 함수 성공을 판정하지 않습니다. 두 번째 실행부터는 `skip (이미 있음)` 이 나옵니다.
 
 4. **로그 보기**
 
@@ -83,3 +83,15 @@ AWS 버전의 각 단계(수집 · 검출 · 티켓 · AI 분석 · 실측 검�
 - 함수들이 어떤 순서로 불리는지: [statemachine/README.md](../statemachine/README.md)
 - lab · skeleton · aws 단계 대응표: [aws/README.md](../README.md) 7장
 - 전체 순서도: [docs/GETTING_STARTED.md](../../docs/GETTING_STARTED.md)
+
+## 입력·출력과 실패 처리 보완
+
+- `init-db`: `only`는 `target`/`verify`, `reset_shop`은 JSON boolean만 받습니다. `"false"` 문자열은 초기화 요청으로 해석하지 않습니다.
+- `detect`: 한글을 포함한 UTF-8 JSON 크기를 계산해 hits를 최대 80KiB로 제한합니다. `count`는 전체 검출 수, `truncated`는 상태에서 생략한 수입니다. 전체 데이터는 DB에서 조회합니다.
+- `analyze`: 최대 8턴·총 16도구 호출. 사용자 쿼리·도구 쿼리·DDL 기본 문자열을 마스킹하고 원시 DB 오류를 모델에 보내지 않습니다. 마스킹은 임의의 개인정보 제거를 보장하지 않습니다.
+- `verify`: 공유 검증 DB를 위해 예약 동시 실행 수를 1로 설정합니다. 다른 실행의 호출은 throttling/재시도를 거칠 수 있습니다. 되돌리기 확인 오류 또는 보호 장치 개입은 사람 검토 대상입니다.
+- `report`: 요청한 날짜와 days(1~366)의 실제 기간을 읽습니다. 현재 날짜에서 오래 지난 리포트도 보관 데이터가 있으면 재계산할 수 있습니다.
+- `publish`: Slack만 사용할 때 전송 실패는 미발행으로 남깁니다. Jira 성공 이벤트는 Slack 호출 전에 저장합니다. 외부 API 성공과 DB 기록은 원자적이지 않아 exactly-once 보장이 아닙니다.
+- DB 인증서 묶음이 없는 패키지는 연결을 거부합니다. 정상 빌드를 다시 수행하세요.
+
+전체 검증 내역과 운영 한계: [SOURCE_REVIEW.md](../SOURCE_REVIEW.md), [OPERATIONS.md](../OPERATIONS.md).

@@ -102,12 +102,12 @@ flowchart TD
 |---|---|---|---|
 | 1. 빌드 · 정적 검증 | (`aws`) `scripts/build.sh` → `scripts/validate.sh` | 해시 두 줄 · 끝 목록에 `FAIL` 없음 | [aws/scripts](../aws/scripts/README.md) · [aws/tests](../aws/tests/README.md) |
 | 2. terraform | (`aws/terraform`) `cp example.tfvars terraform.tfvars` → `terraform init` → `terraform plan -out tfplan` → `terraform apply tfplan` | `Apply complete! Resources: N added …` (여기부터 과금) | [aws/terraform](../aws/terraform/README.md) |
-| 3. 초기화 Lambda | `aws lambda invoke --function-name slowq-init-db --cli-read-timeout 910 --payload '{}' --cli-binary-format raw-in-base64-out /dev/stdout` | 결과 JSON 뒤 `"StatusCode": 200` | [aws/lambda](../aws/lambda/README.md) |
+| 3. 초기화 Lambda | `aws lambda invoke --function-name slowq-init-db --cli-read-timeout 910 --payload '{}' --cli-binary-format raw-in-base64-out /dev/stdout` | 응답 메타데이터에 `FunctionError` 없음 + 결과 JSON의 target/verify 완료 확인 | [aws/lambda](../aws/lambda/README.md) |
 | 4. 상태 머신 실행 | (`aws/terraform`) `aws stepfunctions start-execution --state-machine-arn "$(terraform output -raw state_machine_arn)" --input '{}'` → 부하(`slowq-workload`) → `--input '{"log_date": "<날짜>"}'` 로 한 번 더 | `aws stepfunctions describe-execution --execution-arn <arn> --query status --output text` 가 `SUCCEEDED` | [aws/statemachine](../aws/statemachine/README.md) |
 | 5. Grafana 확인 | (`aws/terraform`) `aws ssm start-session --target "$(terraform output -raw grafana_instance_id)" --document-name AWS-StartPortForwardingSession --parameters '{"portNumber":["3000"],"localPortNumber":["3000"]}'` | http://localhost:3000/d/lab-slowquery 에 그래프 | [aws/grafana](../aws/grafana/README.md) |
 | 6. 삭제 | (`aws/terraform`) `terraform destroy` | `Destroy complete!` | [aws/terraform](../aws/terraform/README.md) |
 
-- 이 폴더는 정적 검증까지만 거쳤고 실제 계정 배포 기록은 없습니다. 비용 · 보안 · 제한 사항은 [aws/README.md](../aws/README.md) 를 먼저 읽으세요.
+- 합성 데이터로 실제 AWS 실행을 확인했습니다. 최신 수정의 검증 단계와 남은 제거 작업은 [실행 기록](../aws/LIVE_VALIDATION.md)·[소스 검토](../aws/SOURCE_REVIEW.md)에 구분했습니다. apply 전에 [운영 안내](../aws/OPERATIONS.md)의 계정·삭제 권한 점검을 진행하세요.
 
 ## 하루 운영은 이렇게 돈다
 

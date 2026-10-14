@@ -86,14 +86,14 @@ def to_html(md):
             "</head><body>" + "\n".join(body) + "</body></html>\n")
 
 
-def load(store):
+def load(store, start, end):
     with store.cursor() as cur:
         cur.execute("SELECT t.*, c.owner_team FROM tuning_ticket t JOIN cmdb_cluster c ON c.cluster=t.cluster")
         tickets = cur.fetchall()
         cur.execute("SELECT ticket_id, at, event FROM ticket_event")
         events = cur.fetchall()
         cur.execute("""SELECT cluster, qhash, log_date, avg_sec, exec_cnt FROM slow_digest_daily
-                       WHERE log_date >= CURDATE() - INTERVAL 60 DAY""")
+                       WHERE log_date BETWEEN %s AND %s""", (start, end))
         daily = cur.fetchall()
     return tickets, events, daily
 
@@ -101,9 +101,11 @@ def load(store):
 def handler(event, context, s3=None):
     end = dt.date.fromisoformat(common.resolve_log_date(event))
     days = int((event or {}).get("days", 7))
+    if not 1 <= days <= 366:
+        raise ValueError("days 는 1~366 사이여야 합니다")
     store = common.store_conn()
     try:
-        tickets, events, daily = load(store)
+        tickets, events, daily = load(store, end - dt.timedelta(days=days - 1), end)
     finally:
         store.close()
     r = summarize(tickets, events, daily, end, days)

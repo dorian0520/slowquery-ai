@@ -50,7 +50,7 @@ def get_secret(arn):
 def ssl_options():
     if os.path.exists(CA_BUNDLE):
         return {"ca": CA_BUNDLE}                  # 인증서 + 호스트 이름 검증
-    return {"verify_mode": False}                 # 묶음이 없으면 암호화만 (README 의 제한 사항 참고)
+    raise RuntimeError("RDS CA 묶음이 없습니다 — scripts/build.sh 로 다시 빌드하세요")
 
 
 def connect(host, secret_arn, database=None, port=None, autocommit=True, connect_timeout=10, read_timeout=600):

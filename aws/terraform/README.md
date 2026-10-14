@@ -39,7 +39,7 @@
    cp example.tfvars terraform.tfvars
    ```
 
-   `terraform.tfvars` 를 열어 `region` · `alert_email` 등을 고칩니다. 이 파일은 `.gitignore` 대상이라 커밋되지 않습니다(토큰을 넣어도 되는 유일한 곳).
+   `terraform.tfvars` 를 열어 `region` · `expected_account_id` · `alert_email` 등을 고칩니다. 이 파일은 `.gitignore` 대상이라 커밋되지 않습니다(토큰을 넣어도 되는 유일한 곳).
 
 2. **초기화** (프로바이더를 내려받음)
 
@@ -93,7 +93,7 @@
 | `enable_workload` | `false` (`example.tfvars` 는 `true`) | 3시간마다 부하 Lambda 를 돌릴지 |
 | `bedrock_model_id` | `global.anthropic.claude-sonnet-4-6` | 리전 · 모델이 다를 때 ([aws/README.md](../README.md) 3장) |
 | `rules` | `min_sec = 0.5` · `min_q = 30` … | 실습 부하에서 티켓이 안 생기면 lab 과 같은 `0.2` · `5` 로 (객체라 6개 값을 모두 적음) |
-| `analyze_max` | `5` | 하루 AI 분석 상한 (Bedrock 비용 상한) |
+| `analyze_max` | `5` | 실행 한 번의 분석 후보 0~10개 (일일 예산 제한 아님) |
 | `grafana_allowed_cidrs` | `[]` | 비우면 SSM 포트 포워딩으로만 접속. 내 IP 만 열려면 `["x.x.x.x/32"]` |
 | `publish_dry_run` · `enable_nat` | `true` · `false` | 실제 Jira · Slack 전송 (자격 증명도 필요) |
 
@@ -114,3 +114,11 @@
 - Lambda 함수별 역할: [lambda/README.md](../lambda/README.md)
 - 비용 · 보안 · 제한 사항: [aws/README.md](../README.md)
 - 전체 순서도: [docs/GETTING_STARTED.md](../../docs/GETTING_STARTED.md)
+
+## 검증용 상태 관리
+
+단발성 검증에서도 상태는 배포·수정·삭제 동안 같은 백엔드에 보관해야 합니다. 로컬 백엔드의 별도 경로를 사용할 때는 `-state` 플래그만 섞어 쓰기보다 `backend "local" {}`와 `terraform init -backend-config="path=..."`로 경로를 명시하세요. 상태와 저장된 계획에는 민감값이 포함될 수 있어 접근을 제한하고 Git에 넣지 않습니다.
+
+## 삭제·반복 실행 전 확인
+
+삭제 권한 점검과 잔존 자원 확인은 [OPERATIONS.md](../OPERATIONS.md)를 따릅니다. 명시적 거부가 있으면 정책을 우회하지 않고 승인된 예외 또는 승인된 삭제 담당 경로를 마련합니다. 검증 Lambda의 예약 동시 실행 수는 1이며 Map도 1입니다. 수집·티켓 기록까지 포함한 실행 전체의 동시 실행 잠금은 구현하지 않았으므로 일일 파이프라인을 겹쳐 시작하지 마세요.

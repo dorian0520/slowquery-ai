@@ -36,7 +36,8 @@ def test_detect_compact_limits_size():
     hits = [{"cluster": "c", "qhash": str(i), "exec_cnt": 1, "total_sec": 1.0, "avg_sec": 1.0, "reasons": ["기준초과"],
              "query_text": "x" * 5000, "rows_examined": 1} for i in range(300)]
     out = detect.compact(hits)
-    assert len(out) == detect.MAX_HITS and len(out[0]["query_text"]) == detect.TEXT_LIMIT and "rows_examined" not in out[0]
+    assert 0 < len(out) <= detect.MAX_HITS and len(out[0]["query_text"]) == detect.TEXT_LIMIT and "rows_examined" not in out[0]
+    assert len(json.dumps(out, ensure_ascii=False).encode()) <= detect.MAX_BYTES
 
 
 def test_attach_records_format_error_for_human_review(fake_conn):

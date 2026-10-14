@@ -91,6 +91,8 @@ resource "aws_lambda_function" "fn" {
   layers           = [aws_lambda_layer_version.deps.arn]
   timeout          = each.value.timeout
   memory_size      = each.value.memory
+  # Map 동시성은 실행 하나만 제한한다. 다른 실행/수동 호출도 검증 DB 측정에 섞이지 않게 한다.
+  reserved_concurrent_executions = each.key == "verify" ? 1 : -1
 
   vpc_config {
     subnet_ids         = aws_subnet.private[*].id

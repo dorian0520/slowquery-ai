@@ -59,3 +59,7 @@ AWS 버전에서 Grafana 를 띄울 EC2 인스턴스가 **처음 부팅할 때 �
 - 대시보드 패널 읽는 법: [lab/grafana/README.md](../../lab/grafana/README.md) · [docs/04-dashboard.md](../../docs/04-dashboard.md)
 - 다 봤으면 삭제: [terraform/README.md](../terraform/README.md) 6단계
 - 전체 순서도: [docs/GETTING_STARTED.md](../../docs/GETTING_STARTED.md)
+
+## 실제 실행에서 확인한 설정
+
+RPM 설치는 `/etc/grafana/grafana.ini`의 file provider로 관리자 비밀번호를 읽습니다. Docker 환경 변수 전용 설정으로 대체하지 않습니다. MySQL datasource는 특수문자 비밀번호·여러 줄 CA를 보존하는 JSON/YAML 호환 문서로 생성하고 TLS 검증을 켭니다. NAT가 꺼진 경우 Grafana 보안 그룹에도 Secrets Manager 인터페이스 엔드포인트 443 접근 규칙이 필요합니다. 실제 관리자 인증·TLS 연결·대시보드 SQL 8개는 확인했으며, 전체 브라우저 UI 검사는 별개입니다.

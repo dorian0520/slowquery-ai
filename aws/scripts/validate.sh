@@ -41,6 +41,7 @@ step "py_compile" pycompile
 step "pytest aws/tests" "$PY" -m pytest -q "$AWS_DIR/tests"
 step "ASL JSON · 구조" "$PY" "$AWS_DIR/scripts/check_asl.py" "$AWS_DIR/statemachine/daily.asl.json" "$AWS_DIR/terraform/stepfunctions.tf"
 step "대시보드 JSON" "$PY" -c "import json,sys; json.load(open(sys.argv[1], encoding='utf-8'))" "$ROOT/lab/grafana/dashboards/slowquery.json"
+step "전체 저장소 문법 · 문서 링크" "$PY" "$AWS_DIR/scripts/check_repo.py"
 step "셸 문법" bash -c "bash -n '$AWS_DIR/scripts/build.sh' && bash -n '$AWS_DIR/scripts/validate.sh' && bash -n '$AWS_DIR/grafana/user_data.sh.tftpl'"
 
 # 금지 문자열: 특정 조직 · 계정 · 개인 경로가 공개 저장소에 섞이지 않게 (이 파일 자신에 걸리지 않도록 조각으로 만든다)
@@ -50,8 +51,8 @@ forbidden="${forbidden%|}"
 guard() {
   local hits
   hits="$(grep -rniEI --exclude-dir=.terraform --exclude-dir=build --exclude-dir=__pycache__ --exclude-dir=.pytest_cache \
-          --exclude=.terraform.lock.hcl -e "$forbidden" "$AWS_DIR" || true)"
-  if [ -n "$hits" ]; then echo "$hits"; return 1; fi
+          --exclude=.terraform.lock.hcl --exclude='*.tfstate*' --exclude='*.tfplan*' --exclude='*.tfvars' -e "$forbidden" "$AWS_DIR" || true)"
+  if [ -n "$hits" ]; then printf '%s\n' "$hits" | cut -d: -f1,2; return 1; fi
   echo "금지 문자열 0건"
 }
 step "금지 문자열 검사" guard

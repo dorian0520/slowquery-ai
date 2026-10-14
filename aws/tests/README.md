@@ -28,11 +28,7 @@ AWS 버전의 Lambda 코드를 **AWS · DB · Bedrock · 인터넷 없이** 가�
    python3 -m pytest -q tests
    ```
 
-   ```
-   ........................................................................ [ 98%]
-   .                                                                        [100%]
-   73 passed in 0.23s
-   ```
+   실패 없이 모두 통과하는지 확인합니다. 테스트 수와 소스별 실행 범위는 [SOURCE_REVIEW.md](../SOURCE_REVIEW.md)에 기록합니다.
 
 2. **한 파일만 · 한 테스트만** 돌리려면:
 
@@ -50,10 +46,26 @@ AWS 버전의 Lambda 코드를 **AWS · DB · Bedrock · 인터넷 없이** 가�
 | `No module named pytest` | `python3 -m pip install pytest` |
 | `ModuleNotFoundError: No module named 'slowq'` · `'slowq_aws'` | `aws` 폴더 밖에서 `tests` 경로를 잘못 줬거나 `skeleton/` 폴더가 없는 상태입니다. 저장소를 통째로 받은 뒤 `aws` 에서 실행 |
 | `No module named 'pymysql'` | `python3 -m pip install -r lambda/requirements.txt` |
-| 테스트 수가 73 과 다르다 | 코드를 고쳤거나 테스트가 추가된 경우입니다. `failed` 가 0 이면 괜찮습니다 |
+| 테스트 수가 기록과 다르다 | 코드를 고쳤거나 테스트가 추가된 경우입니다. `failed` 가 0 이면 괜찮습니다 |
 
 ## 다음 단계
 
 - 빌드 · 정적 검증: [scripts/README.md](../scripts/README.md)
 - Lambda 코드 안내: [lambda/README.md](../lambda/README.md)
 - 전체 순서도: [docs/GETTING_STARTED.md](../../docs/GETTING_STARTED.md)
+
+## 확장 검사
+
+- `test_review_regressions.py`: 과거 리포트 기간, Slack 단독 실패, UTF-8 크기, 도구 총량, 연결 정리, 되돌리기 경고의 수정 전 실패 → 수정 후 통과.
+- `test_handler_contracts.py`: 모든 주요 핸들러 경계, 초기화 권한 분리·시간 부족, 잘못된 입력, TLS·마스킹, 발행 기록 순서.
+- `test_state_paths.py`: 실제 ASL의 데이터 전달·주간/비주간·각 단계 실패·SNS 실패 분기. AWS 시간·재시도·IAM을 에뮬레이션하지 않습니다.
+- `test_grafana_provisioning.py`: 실제 렌더러의 특수문자 비밀번호·CA·설정 파일.
+- `test_preflight.py`: 정확한 두 RDS ARN 및 삭제 거부·누락 컨텍스트 처리.
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 -m coverage run --branch --source=lambda/slowq_aws -m pytest -q tests
+python3 -m coverage report -m
+```
+
+테스트의 네트워크 연결은 자동 차단합니다. 통과가 실제 Jira/Slack 전달·DB 강제 종료 복구·장기 운영 검증을 뜻하지 않습니다.

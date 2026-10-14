@@ -31,10 +31,14 @@ def check(asl_path, tf_path):
         if t == "Task":
             if not st.get("Retry"):
                 errors.append(f"{name}: Retry 없음")
-            if "lambda:invoke" in st.get("Resource", "") and not st.get("Catch"):
+            if not st.get("Catch"):
                 errors.append(f"{name}: Catch 없음")
-        if t == "Map" and not isinstance(st.get("MaxConcurrency"), int):
-            errors.append(f"{name}: MaxConcurrency 없음")
+        if t == "Map":
+            if st.get("MaxConcurrency") != 1:
+                errors.append(f"{name}: 공유 검증 DB의 MaxConcurrency 는 1이어야 합니다")
+            child = st["ItemProcessor"]
+            if child.get("StartAt") not in child["States"]:
+                errors.append(f"{name}: ItemProcessor StartAt 상태가 없습니다")
         if t not in ("Choice", "Succeed", "Fail") and not st.get("End") and "Next" not in st:
             errors.append(f"{name}: Next/End 없음")
     used = set(re.findall(r"\$\{(\w+)\}", text))

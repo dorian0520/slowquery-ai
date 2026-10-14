@@ -50,9 +50,9 @@ def run(conn, ddl, test_sql, default_schema="shop", max_exec_ms=60000):
     finally:
         try:
             dropped = ensure_rolled_back(conn, table, index, default_schema)
-        except Exception:  # noqa: BLE001 — 되돌리기 확인 실패는 숨기지 않고 기록한 뒤 원래 흐름(예외 포함)을 그대로 둔다
+        except Exception as exc:  # noqa: BLE001 — 되돌리기를 확인하지 못하면 통과를 반환하지 않는다
             common.log.exception("검증 DB 인덱스 되돌리기 확인 실패: %s.%s", table, index)
-            dropped = None
+            raise RuntimeError("검증 DB 인덱스 되돌리기 확인 실패 — 사람의 확인 필요") from exc
         if dropped:
             common.log.error("검증 DB 에 인덱스가 남아 있어 지웠습니다: %s.%s", table, index)
     result["rolled_back_by_guard"] = bool(dropped)

@@ -7,15 +7,17 @@ AWS 관리형 서비스로 옮긴 버전입니다. Terraform 한 번으로 VPC �
 - AI 진단은 Claude Code + MCP 대신 **Amazon Bedrock Converse API** 를 Lambda 안에서 부르고, 근거 도구 4가지를 Lambda 함수로 구현했습니다.
 - **운영 DDL 은 자동으로 실행하지 않습니다.** 검증 DB 에서만 인덱스를 만들었다가 되돌리고, 운영 반영은 계획서를 만든 뒤 사람이 승인해 실행합니다.
 
-> 이 폴더의 코드는 정적 검증(`scripts/validate.sh`)까지만 거쳤습니다. 실제 AWS 계정에 배포해 끝까지 돌려 본 기록은 아직 없습니다. 아래 「제한 사항」을 먼저 읽어 주세요.
+> 처음 설치하거나 문제를 진단한다면 [운영 안내](OPERATIONS.md)를 순서대로 따르세요. 전체 소스 검사 범위는 [SOURCE_REVIEW.md](SOURCE_REVIEW.md)에 있습니다.
+
+> 독립 검증 스택에서 MySQL 8.4·Lambda·Step Functions·Bedrock·Grafana의 실제 실행을 확인했습니다. 검증 범위와 재현 조건은 `LIVE_VALIDATION.md`에 기록합니다. Jira·Slack은 dry-run이며 범용 운영 배포 보증은 아닙니다.
 
 ## 처음이라면 — 이 폴더 사용법
 
-- **비용이 듭니다.** `terraform apply` 순간부터 하루 약 $3 정도가 나갑니다(2장). 실습이 끝나면 반드시 `terraform destroy` 합니다. 로컬 `lab/` 실습을 먼저 끝까지 해 보고 오는 것을 권합니다.
-- **돈이 들지 않는 단계부터**: 아래 순서 중 1~2번은 AWS 계정 없이도 됩니다.
+- **비용이 듭니다.** `terraform apply` 순간부터 지속적으로 요금이 발생합니다(2장). 실습이 끝나면 반드시 `terraform destroy` 합니다. 로컬 `lab/` 실습을 먼저 끝까지 해 보고 오는 것을 권합니다.
+- **돈이 들지 않는 단계부터**: 아래 순서 중 빌드·정적 검증은 AWS 계정 없이도 됩니다. 삭제 권한 점검은 계정이 필요합니다.
   1. `aws` 폴더에서 `scripts/build.sh` → 마지막에 `function.zip` · `layer.zip` 해시 두 줄이 나오면 성공
   2. `aws` 폴더에서 `scripts/validate.sh` → 끝에 `PASS  …` 목록이 나오고 `FAIL` 이 없으면 성공
-  3. `aws/terraform` 에서 `terraform init` → `plan` → `apply` (여기부터 과금)
+  3. [OPERATIONS.md](OPERATIONS.md)의 계정·삭제 권한 점검 후 `aws/terraform`에서 `init` → `plan` → `apply` (여기부터 과금)
   4. `terraform output -raw next_steps` 가 알려 주는 명령으로 `init-db` → 상태 머신 실행 → Grafana 확인
   5. 다 봤으면 `terraform destroy`
 - **하위 폴더 안내**
@@ -74,7 +76,7 @@ flowchart LR
 | 파일 | 리소스 | 하는 일 |
 |---|---|---|
 | `terraform/network.tf` | VPC · 퍼블릭 2 · 프라이빗 2 서브넷 · 보안 그룹 · S3 게이트웨이 엔드포인트 · (NAT 끔) 인터페이스 엔드포인트 · (선택) NAT | RDS 와 Lambda 는 프라이빗. NAT 를 끄면(기본) Secrets Manager · Bedrock 런타임은 VPC 엔드포인트로 나갑니다 |
-| `terraform/rds.tf` | RDS MySQL 8.0 × 2 (`db.t4g.micro`) · 파라미터 그룹 | `performance_schema=1`, digest 크기 · 길이, `slow_query_log=1`, `long_query_time=0.5`, TLS 강제. 마스터 비밀번호는 RDS 가 Secrets Manager 에서 관리 |
+| `terraform/rds.tf` | RDS MySQL 8.4 × 2 (`db.t4g.micro`) · 파라미터 그룹 | `performance_schema=1`, digest 크기 · 길이, `slow_query_log=1`, `long_query_time=0.5`, TLS 강제. 마스터 비밀번호는 RDS 가 Secrets Manager 에서 관리 |
 | `terraform/secrets.tf` | Secrets Manager × 8 (+ RDS 관리 2) · `random_password` | 최소 권한 DB 계정 6개 · Grafana 관리자 · 발행 자격 증명(선택) |
 | `terraform/iam.tf` | Lambda 함수별 역할 · Step Functions · Scheduler 역할 | 함수마다 자기 비밀 · 자기 로그 그룹 · 자기 S3 경로만. Bedrock 은 설정한 모델(추론 프로필)만 |
 | `terraform/lambda.tf` | Lambda 12개 + 레이어(pymysql · cryptography) | 패키지 하나를 공유하고 핸들러만 다름 (arm64 · python3.12) |
@@ -103,28 +105,26 @@ flowchart LR
 
 ## 2. 하루 비용 (대략)
 
-가정: 서울 리전, 온디맨드, NAT 끔(기본), 데이터 전송 미미, 2026-10 기준 공개 가격을 반올림. 실제 요금은 [AWS 요금 계산기](https://calculator.aws/)로 확인하세요.
+배포 전 [AWS 요금 계산기](https://calculator.aws/)에 실제 리전·가동 시간·인스턴스·스토리지·추론 모델을 입력하세요. 확정 청구 금액을 검증한 기록은 없습니다.
 
-| 항목 | 가정 | 하루 |
-|---|---|---|
-| RDS MySQL `db.t4g.micro` × 2 | 시간당 약 $0.025 × 24h × 2 | 약 $1.2 |
-| RDS 스토리지 gp3 20GB × 2 | 월 약 $0.13/GB | 약 $0.2 |
-| EC2 `t4g.small` + EBS 8GB + 퍼블릭 IPv4 | 시간당 약 $0.021 + $0.005 | 약 $0.65 |
-| 인터페이스 엔드포인트 2개 × AZ 1 | 시간당 약 $0.013 | 약 $0.65 |
-| Secrets Manager 10개 | 월 $0.40/개 | 약 $0.13 |
-| Bedrock (Claude Sonnet 4.6, global) | 티켓당 도구 4~8턴 · 입력 약 3만 · 출력 약 2천 토큰 → 약 $0.12, 하루 상한 5건 | 0 ~ 약 $0.6 |
-| Lambda · Step Functions · CloudWatch · S3 | 하루 1회 실행 | $0.05 미만 |
-| **합계** | | **약 $3 ~ 3.5 / 일** |
-| (선택) NAT 게이트웨이 | 시간당 약 $0.06 + 처리량 | +약 $1.5 / 일 |
-
-쓰지 않을 때는 `terraform destroy` 로 지우는 것이 가장 쌉니다 (RDS 두 대가 비용의 절반).
+- RDS 2대와 스토리지, Grafana EC2/EBS·퍼블릭 IPv4, 인터페이스 엔드포인트, Secrets Manager는 실행하지 않는 동안에도 비용이 발생할 수 있습니다.
+- Bedrock 비용은 입력·출력 토큰 및 실행 횟수에 따라 달라집니다. `analyze_max`는 **실행 한 번**의 후보 상한이며 일일 예산 제한이 아닙니다.
+- NAT를 켜면 게이트웨이 시간·처리 비용이 추가됩니다. 실습 종료 후 삭제 완료와 잔존 자원을 모두 확인하세요.
 
 ## 3. 준비
 
-- Terraform ≥ 1.5, AWS CLI v2, Python 3.12+ (`pip`), `curl`
+- Terraform ≥ 1.5, AWS CLI v2, Python 3.12+ (`pip`), `curl`. 로컬 검증 의존성은 `python3 -m pip install -r requirements-dev.txt`
 - 배포할 AWS 계정의 자격 증명 (관리자 또는 VPC · RDS · Lambda · IAM · Step Functions · EC2 · S3 · Secrets Manager · SNS · Scheduler 생성 권한)
 - Bedrock 모델 사용 권한: Anthropic 모델은 처음 쓸 때 콘솔에서 사용 사례 제출이 필요할 수 있습니다
 - (선택) Session Manager 플러그인 — Grafana 를 인터넷에 열지 않고 포트 포워딩으로 볼 때
+
+### 삭제 권한을 배포 전에 확인
+
+생성 권한이 있어도 삭제가 명시적으로 거부될 수 있습니다. `scripts/preflight.py --profile <승인된 프로필> --expected-account <12자리 계정> --prefix <검증 접두어>`로 계정과 두 RDS의 삭제 권한 시뮬레이션을 먼저 확인하세요(로컬 boto3 필요). `explicitDeny`, 누락 컨텍스트, 시뮬레이션 권한 오류가 있으면 생성하지 말고 승인된 삭제 경로를 먼저 마련합니다. 시뮬레이션은 SCP·리소스 정책·태그 조건과 실제 서비스 삭제를 보장하지 않습니다.
+
+### 배포 계정과 MySQL 버전
+
+`expected_account_id`를 실제 배포 계정 ID로 지정하면 다른 계정의 인증으로 배포·삭제하는 것을 차단합니다. 기본 MySQL은 8.4이며 파라미터 그룹도 mysql8.4로 선택합니다. MySQL 8.0을 선택하면 표준 지원 종료와 Extended Support 비용을 먼저 확인하세요. 지원 마이너 버전은 배포 리전의 `describe-db-engine-versions` 결과를 확인합니다.
 
 ### Bedrock 모델 ID
 
@@ -270,8 +270,8 @@ aws/scripts/validate.sh
 
 ## 9. 제한 사항
 
-- **배포 검증 미실시** — `terraform validate` 는 통과했지만(Terraform 1.10, AWS 프로바이더 5.100), `plan` · `apply` 와 실제 AWS 위의 동작은 아직 확인하지 않았습니다. Apple Silicon 에서 x86_64 Terraform 을 쓰면 첫 실행에 프로바이더가 늦게 뜰 수 있으니 arm64 빌드를 권장합니다.
-- **실배포 미검증** — `terraform plan/apply`, Lambda 실행, Bedrock 호출, Grafana 설치는 이 저장소에서 실제 계정으로 돌려 보지 않았습니다. 정적 검증과 단위 테스트만 통과했습니다.
+- **배포 검증 범위** — Terraform 1.10.5 arm64·AWS 프로바이더 5.100으로 독립 스택의 생성·실행을 확인했습니다. Apple Silicon에서 x86_64 바이너리는 프로바이더 시작 시간 초과가 발생해 arm64 빌드를 사용했습니다.
+- **실배포의 한계** — 실제 Lambda·Bedrock·Grafana와 합성 RDS의 실행을 확인했지만, Jira·Slack 실제 전송·조직별 IAM·기존 운영 DB 이식은 별도 검증이 필요합니다. Grafana SQL 8개는 명시적으로 치환한 변수로 확인했으며 브라우저 변수 자동 선택은 미검증입니다.
 - **`db.t4g.micro` 의 performance_schema** — 메모리 1GB 인스턴스에서 `performance_schema=1` 은 메모리를 더 씁니다. 샘플 200만 행 생성 · 측정이 느리면 `db_instance_class = "db.t4g.small"` 로 올리세요.
 - **init-db 시간** — 샘플 데이터 생성이 Lambda 최대 15분에 가깝게 걸릴 수 있습니다. 두 DB 를 나눠 실행하도록(`{"only": ...}`) 안내합니다.
 - **분석 도구의 대상** — 근거 도구(`table_info` · `explain`)는 대상 DB(`TARGET_HOST`)의 `shop` 스키마를 봅니다. 다른 클러스터를 CMDB 에 추가하면 그 클러스터용 읽기 계정 · 호스트 선택을 넣어야 합니다. 검증 DB(order-db)는 기본으로 수집하지 않습니다(`collect=0`).
@@ -280,5 +280,5 @@ aws/scripts/validate.sh
 - **동시 실행** — Map 은 검증 DB 측정이 섞이지 않게 한 번에 하나씩 돕니다. 상태 머신을 같은 날 두 번 겹쳐 실행하는 것은 막지 않습니다.
 - **발행 dry-run 반복** — dry-run 은 이벤트를 남기지 않으므로 최근 7일 안의 미발행 티켓 본문이 매일 다시 로그에 찍힙니다.
 - **실패 알림 채널** — 실패 알림은 SNS(이메일)만 연결했습니다. Slack 웹훅으로도 받으려면 SNS 구독용 Lambda 를 추가하세요.
-- **RDS CA 묶음** — `build.sh` 가 RDS CA 묶음을 받지 못하면 Lambda 는 TLS 암호화만 하고 인증서 검증은 생략합니다(경고 출력).
+- **RDS CA 묶음** — 정상 빌드는 묶음을 받지 못하면 중단하고, CA 없는 Lambda 패키지는 DB 연결을 거부합니다.
 - **Bedrock 가용성** — 모델 · 프로필 지원 리전은 바뀝니다. 배포 전 모델 카드에서 내 리전의 프로필 ID 를 확인하세요.

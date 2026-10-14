@@ -1,3 +1,13 @@
+variable "expected_account_id" {
+  description = "배포할 AWS 계정 ID. 지정하면 다른 계정의 자격 증명으로 배포·삭제하지 못한다."
+  type        = string
+  default     = null
+  validation {
+    condition     = var.expected_account_id == null ? true : can(regex("^[0-9]{12}$", var.expected_account_id))
+    error_message = "expected_account_id 는 12자리 AWS 계정 ID여야 합니다."
+  }
+}
+
 variable "region" {
   description = "배포 리전. 기본은 서울(ap-northeast-2) — Bedrock 은 global 추론 프로필로 호출한다."
   type        = string
@@ -40,9 +50,9 @@ variable "db_instance_class" {
 }
 
 variable "db_engine_version" {
-  description = "RDS MySQL 엔진 버전 (8.0 계열)"
+  description = "RDS MySQL 엔진 버전 (8.4 기본; 8.0은 별도 지원·비용 확인)"
   type        = string
-  default     = "8.0"
+  default     = "8.4"
 }
 
 variable "db_allocated_storage" {
@@ -79,6 +89,10 @@ variable "report_weekday" {
   description = "주간 리포트를 만드는 log_date 요일 (0=월 ... 6=일)"
   type        = number
   default     = 6
+  validation {
+    condition     = var.report_weekday >= 0 && var.report_weekday <= 6 && floor(var.report_weekday) == var.report_weekday
+    error_message = "report_weekday 는 0~6 정수여야 합니다."
+  }
 }
 
 variable "enable_workload" {
@@ -114,9 +128,13 @@ variable "rules" {
 }
 
 variable "analyze_max" {
-  description = "하루에 AI 분석할 티켓 상한 (Bedrock 비용 상한)"
+  description = "실행 한 번의 AI 분석 티켓 상한 (0이면 분석 끔). 반복 실행의 일일 비용 상한은 아니다."
   type        = number
   default     = 5
+  validation {
+    condition     = var.analyze_max >= 0 && var.analyze_max <= 10 && floor(var.analyze_max) == var.analyze_max
+    error_message = "analyze_max 는 상태 크기를 제한하기 위해 0~10 정수여야 합니다."
+  }
 }
 
 variable "alert_email" {

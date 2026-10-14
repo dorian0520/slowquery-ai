@@ -1,0 +1,4 @@
+-r lambda/requirements.txt
+boto3==1.43.112
+pytest==9.1.1
+coverage==7.16.2

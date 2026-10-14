@@ -2,6 +2,7 @@
 import os
 import re
 import sys
+import socket
 
 import pytest
 
@@ -13,6 +14,16 @@ sys.path[:0] = [os.path.join(ROOT, "aws", "lambda"), os.path.join(ROOT, "skeleto
 for k in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE"):
     os.environ.pop(k, None)
 os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
+os.environ["AWS_EC2_METADATA_DISABLED"] = "true"
+
+
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch):
+    """테스트의 잘못된 mock 때문에 실제 AWS/DB/HTTP가 호출되는 것을 거부한다."""
+    def denied(*args, **kwargs):
+        raise AssertionError("단위 테스트에서 네트워크 연결을 시도했습니다")
+    monkeypatch.setattr(socket.socket, "connect", denied)
+    monkeypatch.setattr(socket.socket, "connect_ex", denied)
 
 
 class FakeCursor:

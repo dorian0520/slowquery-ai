@@ -138,7 +138,8 @@ def channels(cfg, dry_run):
     return ch
 
 
-def publish(store, log_date, cfg, dry_run, dashboard_url, limit=20, post=http_post):
+def publish(store, log_date, cfg, dry_run, dashboard_url, limit=20, post=None):
+    post = post or http_post
     live = channels(cfg, dry_run)
     with store.cursor() as cur:
         cur.execute(TARGET_SQL, (log_date, LOOKBACK_DAYS, int(limit)))
@@ -152,13 +153,21 @@ def publish(store, log_date, cfg, dry_run, dashboard_url, limit=20, post=http_po
             out["previewed"].append(t["ticket_id"])
             continue
         note = []
+        recorded = False
         try:
             if "jira" in live:
                 note.append("jira " + send_jira(jb, cfg, post))
+                # Jira 생성 성공을 Slack 호출 전에 남긴다. Slack 실패로 이슈를 재발행하지 않는다.
+                with store.cursor() as cur:
+                    cur.execute("INSERT INTO ticket_event (ticket_id, at, event, note) VALUES (%s, NOW(), 'PUBLISHED', %s)",
+                                (t["ticket_id"], note[0]))
+                recorded = True
             if "slack" in live:
                 try:
                     note.append("slack " + send_slack(sb, cfg, post))
                 except Exception as e:  # noqa: BLE001 — 알림 실패는 기록만 (이슈는 이미 만들어졌으므로 재시도하지 않음)
+                    if "jira" not in live:
+                        raise
                     common.log.warning("Slack 전송 실패 ticket=%s: %s", t["ticket_id"], redact(e, cfg))
                     note.append("slack 실패")
         except Exception as e:  # noqa: BLE001 — 티켓 단위 격리, 끝에서 한꺼번에 실패로 알린다
@@ -166,9 +175,10 @@ def publish(store, log_date, cfg, dry_run, dashboard_url, limit=20, post=http_po
             common.log.error("발행 실패 ticket=%s: %s", t["ticket_id"], msg)
             out["errors"].append({"ticket_id": t["ticket_id"], "error": msg})
             continue
-        with store.cursor() as cur:
-            cur.execute("INSERT INTO ticket_event (ticket_id, at, event, note) VALUES (%s, NOW(), 'PUBLISHED', %s)",
-                        (t["ticket_id"], " · ".join(note)[:500]))
+        if not recorded:
+            with store.cursor() as cur:
+                cur.execute("INSERT INTO ticket_event (ticket_id, at, event, note) VALUES (%s, NOW(), 'PUBLISHED', %s)",
+                            (t["ticket_id"], " · ".join(note)[:500]))
         out["sent"].append(t["ticket_id"])
     return out
 

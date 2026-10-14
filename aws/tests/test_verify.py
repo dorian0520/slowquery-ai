@@ -74,3 +74,12 @@ def test_handler_skips_when_analysis_not_ok():
 def test_handler_skips_rewrite_only_proposal():
     a = {"ticket_id": 3, "status": "OK", "proposal": {"proposal": "keyset 페이지네이션으로 재작성", "test_sql": TEST}}
     assert V.handler({"analysis": a}, None)["status"] == "SKIPPED"
+
+
+def test_rollback_confirmation_failure_never_returns_pass(fake_conn, monkeypatch):
+    conn, state = verify_db(fake_conn)
+    def cannot_confirm(*args, **kwargs):
+        raise RuntimeError("인덱스 상태 조회 불가")
+    monkeypatch.setattr(V, "ensure_rolled_back", cannot_confirm)
+    with pytest.raises(RuntimeError, match="되돌리기 확인 실패"):
+        V.run(conn, DDL, TEST)

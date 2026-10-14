@@ -1,4 +1,4 @@
-# RDS MySQL 8.0 두 대
+# RDS MySQL 두 대 (8.4 기본)
 #   target (shop-db) : 서비스 DB 역할 + 자동화 저장소 스키마 dba (lab 과 같은 배치)
 #   verify (order-db): 실측 검증 DB — AI 제안 인덱스를 여기에만 만들었다가 지운다
 # 마스터 비밀번호는 RDS 가 Secrets Manager 에 직접 만들고 관리한다(manage_master_user_password) — Terraform 상태에 남지 않는다.
@@ -9,8 +9,8 @@ resource "aws_db_subnet_group" "this" {
 }
 
 resource "aws_db_parameter_group" "mysql" {
-  name        = "${local.p}-mysql80"
-  family      = "mysql8.0"
+  name        = "${local.p}-mysql"
+  family      = startswith(var.db_engine_version, "8.4") ? "mysql8.4" : "mysql8.0"
   description = "slowq: performance_schema digest + slow log"
 
   # 정적 파라미터는 생성 시점에 적용된다 (나중에 바꾸면 재부팅 필요)

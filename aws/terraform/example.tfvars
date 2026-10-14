@@ -1,6 +1,9 @@
 # 복사해서 terraform.tfvars 로 쓴다 (terraform.tfvars 는 .gitignore 대상 — 토큰을 커밋하지 않는다).
 region      = "ap-northeast-2"
 name_prefix = "slowq"
+# 실제 12자리 계정 ID를 넣으면 잘못된 계정에서 배포/삭제하지 못한다
+# expected_account_id = "<12자리 계정 ID>"
+db_engine_version = "8.4"
 
 # Bedrock: 서울 리전은 global. 추론 프로필만 지원 (README 「Bedrock 모델 ID」 참고)
 bedrock_model_id = "global.anthropic.claude-sonnet-4-6"

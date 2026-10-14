@@ -88,7 +88,11 @@ def seed_cmdb(cur, store_db, target_host, verify_host):
 def handler(event, context):
     event = event or {}
     only = event.get("only")             # None | "target" | "verify"
-    reset = bool(event.get("reset_shop"))
+    if only not in (None, "target", "verify"):
+        raise InitError("only 는 target 또는 verify 여야 합니다")
+    reset = event.get("reset_shop", False)
+    if not isinstance(reset, bool):
+        raise InitError("reset_shop 은 JSON true/false 여야 합니다")
     store_db, shop_db = common.env("STORE_DB", "dba"), common.env("SHOP_DB", "shop")
     hosts = {"target": common.env("TARGET_HOST", required=True), "verify": common.env("VERIFY_HOST", required=True)}
     masters = {"target": common.env("TARGET_MASTER_SECRET_ARN", required=True),

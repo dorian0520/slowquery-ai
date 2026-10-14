@@ -16,9 +16,11 @@ def recommendation(analysis, verify):
     p = a["proposal"]
     rec = {k: p.get(k) for k in ("cause", "evidence", "proposal", "expected", "confidence", "test_sql")}
     rec["status"] = "OK"
-    rec["verify"] = {k: v.get(k) for k in ("status", "reason", "ddl", "before_sec", "after_sec", "same")}
-    rec["verify"]["pass"] = v.get("status") == "PASS"
+    rec["verify"] = {k: v.get(k) for k in ("status", "reason", "ddl", "before_sec", "after_sec", "same", "rolled_back_by_guard")}
+    rec["verify"]["pass"] = v.get("status") == "PASS" and not v.get("rolled_back_by_guard")
     note = {"PASS": "실측 통과", "FAIL": "실측 탈락 → 사람 검토"}.get(v.get("status"), f"검증 없음({v.get('reason', '-')})")
+    if v.get("rolled_back_by_guard"):
+        note = "되돌리기 보호 장치 개입 → 사람 검토"
     return rec, f"{p.get('confidence')} · {note}"
 
 

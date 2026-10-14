@@ -2,6 +2,9 @@ build/
 terraform/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.*
+terraform/*.tfplan*
+terraform/tfplan
+terraform/crash.log
 terraform/*.tfvars
 !terraform/example.tfvars
 __pycache__/

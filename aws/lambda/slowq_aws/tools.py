@@ -7,6 +7,7 @@ AI 가 할 수 있는 일은 이 네 가지뿐이고, 모두 읽기 전용 계�
 - query_trend : 쿼리 지문 하나의 일자별 추이
 """
 from . import guards
+from slowq.mask import mask
 
 SPECS = [
     {"name": "top_queries", "description": "일자별 슬로우 쿼리 상위 목록(총 부하 순). log_date 형식 YYYY-MM-DD",
@@ -34,11 +35,12 @@ class Tools:
             return cur.fetchall()
 
     def top_queries(self, log_date, limit=10):
-        return self._q(self.store, """SELECT cluster, qhash, query_text, exec_cnt, ROUND(avg_sec,4) avg_sec,
+        rows = self._q(self.store, """SELECT cluster, qhash, query_text, exec_cnt, ROUND(avg_sec,4) avg_sec,
                                              ROUND(total_sec,2) total_sec, rows_examined
                                       FROM slow_digest_daily WHERE log_date=%s AND cluster=%s
                                       ORDER BY total_sec DESC LIMIT %s""",
                        (str(log_date), self.cluster, max(1, min(int(limit), 20))))
+        return [dict(r, query_text=mask(r.get("query_text") or "")) for r in rows]
 
     def table_info(self, table):
         t = guards.table_name(table)
@@ -46,7 +48,7 @@ class Tools:
         idx = self._q(self.shop, f"SHOW INDEX FROM `{t}`")
         rows = self._q(self.shop, "SELECT TABLE_ROWS FROM information_schema.tables WHERE table_schema=%s AND table_name=%s",
                        (self.shop_db, t))
-        return {"ddl": ddl,
+        return {"ddl": guards.mask_plan(ddl),
                 "indexes": [{k: i[k] for k in ("Key_name", "Seq_in_index", "Column_name", "Cardinality")} for i in idx],
                 "approx_rows": rows[0]["TABLE_ROWS"] if rows else None}
 
@@ -72,5 +74,5 @@ class Tools:
             return {"error": f"거부: {e}"}, True
         except TypeError as e:
             return {"error": f"인자 오류: {e}"}, True
-        except Exception as e:  # noqa: BLE001 — DB 오류 문구만 AI 에 돌려준다 (접속 정보는 포함되지 않음)
-            return {"error": f"{type(e).__name__}: {str(e)[:200]}"}, True
+        except Exception as e:  # noqa: BLE001 — DB 오류의 SQL 값·접속 정보는 모델로 보내지 않는다
+            return {"error": f"{type(e).__name__}: 도구 실행 실패"}, True

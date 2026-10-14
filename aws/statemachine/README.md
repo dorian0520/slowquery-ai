@@ -24,7 +24,7 @@ flowchart LR
 ```
 
 - Collect · Detect · IssueTickets · Track · Report 가 실패하면 `NotifyFailure`(SNS 알림) → `Failed` 로 끝납니다.
-- 발행(Publish) 실패는 알리기만 하고 리포트 단계는 계속합니다.
+- 발행(Publish) 실패는 알리고 리포트 단계는 계속합니다. SNS 알림 자체가 실패해도 `notification_error`를 남기고 주간 분기로 이동합니다. 일반 파이프라인 실패는 SNS 성공 여부와 관계없이 `Failed`로 종료합니다.
 - Map 안에서 한 티켓의 분석 · 검증 · 첨부가 실패하면 그 티켓만 「사람 검토」로 남기고 다음 티켓으로 넘어갑니다.
 
 ## 준비물
@@ -87,3 +87,9 @@ flowchart LR
 - 리포트 · 계획서 확인과 Grafana: [aws/README.md](../README.md) 4~5장, [grafana/README.md](../grafana/README.md)
 - 각 상태가 부르는 함수: [lambda/README.md](../lambda/README.md)
 - 전체 순서도: [docs/GETTING_STARTED.md](../../docs/GETTING_STARTED.md)
+
+## 검증 범위와 제한
+
+실제 ASL을 읽는 로컬 전달 계약 검사로 주간·비주간·티켓별 실패·핵심 단계 실패·SNS 실패 경로를 확인합니다. 로컬 검사는 AWS의 재시도 시간·서비스 권한·타임아웃을 에뮬레이션하지 않습니다. 수정된 정의는 AWS `ValidateStateMachineDefinition`에서 오류·경고 없이 OK를 받았습니다. 앞선 합성 스택의 실제 성공·실패 실행 기록과 최신 수정 후 재배포 여부는 [SOURCE_REVIEW.md](../SOURCE_REVIEW.md)에 구분합니다.
+
+`MaxConcurrency=1`은 실행 하나 안의 Map만 직렬화합니다. 검증 Lambda는 별도로 예약 동시 실행 1을 사용하고, 파이프라인 전체는 겹쳐 실행하지 않습니다. 상태 입출력은 [AWS 제한](https://docs.aws.amazon.com/step-functions/latest/dg/service-quotas.html)에 맞춰 작게 유지하며 크기 초과 등 모든 오류를 Catch로 복구할 수 있는 것은 아닙니다.

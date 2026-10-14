@@ -1,8 +1,10 @@
 # slowquery-ai — AI를 활용한 데이터베이스 쿼리 튜닝 자동화
 
-인프런 강의 **「AI를 활용한 데이터베이스 쿼리 튜닝 자동화 — Claude Code로 매일 슬로우 쿼리를 찾고, 분석하고, 검증하는 MySQL 운영 시스템」** 의 실습 코드와 워킹 스켈레톤입니다.
+강의 **「AI를 활용한 데이터베이스 쿼리 튜닝 자동화 — Claude Code로 매일 슬로우 쿼리를 찾고, 분석하고, 검증하는 MySQL 운영 시스템」** 의 실습 코드와 워킹 스켈레톤입니다.
 
-느린 쿼리를 매일 자동으로 **수집 → 검출 → 티켓 발행 → AI 분석 → 실측 검증 → 운영 반영 → 해결 · 재발 추적 → 리포트** 하는 시스템을 로컬에서 그대로 돌려 볼 수 있습니다.
+느린 쿼리의 **수집 → 검출 → 담당자 티켓 → 근거 기반 AI 진단 → 별도 DB 실측 검증 → 변경 계획 → 해결·재발 추적 → 리포트**를 연결하는 MySQL 실습 프로젝트입니다. DBA·백엔드 개발자·플랫폼 엔지니어가 단발성 튜닝을 반복 가능한 운영 흐름으로 만드는 과정을 익힐 수 있습니다.
+
+로컬 `lab/`은 강의 사례 재현, `skeleton/`은 환경에 맞춰 확장할 출발점, `aws/`는 RDS·Lambda·Step Functions·Bedrock·Grafana로 같은 흐름을 실행하는 실습입니다. AWS 버전은 운영 DDL을 자동 실행하지 않고 승인할 변경 계획을 생성합니다. 쿼리 재작성 제안은 사람이 검토하며 자동 실측은 되돌릴 수 있는 단일 ADD INDEX에 한정합니다.
 
 > 처음이라면 **[전체 순서도 · 단계별 체크리스트 (docs/GETTING_STARTED.md)](docs/GETTING_STARTED.md)** 부터 보세요. 폴더마다 `README.md` 사용법이 있습니다.
 
@@ -39,7 +41,7 @@ Grafana: http://localhost:3000 (로그인 없이 보기). 자세한 순서는 [`
 
 ## AWS 버전 (Terraform · Lambda · Step Functions)
 
-같은 파이프라인을 AWS 에 올리는 IaC 버전은 [`aws/README.md`](aws/README.md) 에 있습니다 — RDS MySQL 두 대 · Lambda(수집 · 검출 · 티켓 · Bedrock 진단 · 실측 검증 · 추적 · 발행 · 리포트) · Step Functions 일일 배치 · EventBridge 스케줄 · EC2 Grafana. 운영 DDL 은 자동 실행하지 않고 변경 계획만 만듭니다. 정적 검증(`terraform validate`, 테스트 73개)까지 마쳤고, 실제 배포는 직접 하며 비용이 발생합니다.
+같은 파이프라인을 AWS 에 올리는 IaC 버전은 [`aws/README.md`](aws/README.md) 에 있습니다 — RDS MySQL 두 대 · Lambda(수집 · 검출 · 티켓 · Bedrock 진단 · 실측 검증 · 추적 · 발행 · 리포트) · Step Functions 일일 배치 · EventBridge 스케줄 · EC2 Grafana. 운영 DDL 은 자동 실행하지 않고 변경 계획만 만듭니다. 독립 AWS 스택에서 합성 데이터로 파이프라인과 Grafana를 실제 검증했습니다. [실행 증거와 미검증 범위](aws/LIVE_VALIDATION.md), [전체 소스 검토](aws/SOURCE_REVIEW.md), [설치·결과 확인·삭제 안내](aws/OPERATIONS.md)를 확인하세요. 최신 수정은 로컬 검사와 AWS 정의 검증을 거쳤으며, 수정 후 전체 재배포 검증 및 검증용 RDS 제거는 아직 완료되지 않았습니다.
 
 ## 문서
 

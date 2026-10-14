@@ -40,7 +40,7 @@ data "aws_iam_policy_document" "fn" {
   statement {
     sid = "VpcEni"
     actions = [
-      "ec2:CreateNetworkInterface", "ec2:DescribeNetworkInterfaces", "ec2:DeleteNetworkInterface",
+      "ec2:CreateNetworkInterface", "ec2:DescribeNetworkInterfaces", "ec2:DescribeSubnets", "ec2:DeleteNetworkInterface",
       "ec2:AssignPrivateIpAddresses", "ec2:UnassignPrivateIpAddresses",
     ]
     resources = ["*"]

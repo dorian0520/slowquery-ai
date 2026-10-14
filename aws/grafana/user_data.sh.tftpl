@@ -24,7 +24,7 @@ secret() { aws secretsmanager get-secret-value --region "$REGION" --secret-id "$
 
 install -d -m 750 -o root -g grafana /etc/grafana/secrets
 secret "${ds_secret_arn}" | jq -r .password > /etc/grafana/secrets/ds_password
-DS_USER=$(secret "${ds_secret_arn}" | jq -r .username)
+secret "${ds_secret_arn}" | jq -r .username > /etc/grafana/secrets/ds_username
 secret "${admin_secret_arn}" | jq -r .password > /etc/grafana/secrets/admin_password
 curl -fsSL "https://truststore.pki.rds.amazonaws.com/$REGION/$REGION-bundle.pem" -o /etc/grafana/secrets/rds-ca.pem
 chown root:grafana /etc/grafana/secrets/* && chmod 640 /etc/grafana/secrets/*
@@ -33,30 +33,39 @@ chown root:grafana /etc/grafana/secrets/* && chmod 640 /etc/grafana/secrets/*
 mkdir -p /etc/systemd/system/grafana-server.service.d
 cat > /etc/systemd/system/grafana-server.service.d/slowq.conf <<CONF
 [Service]
-Environment=GF_SECURITY_ADMIN_PASSWORD__FILE=/etc/grafana/secrets/admin_password
 Environment=GF_AUTH_ANONYMOUS_ENABLED=false
 Environment=GF_USERS_ALLOW_SIGN_UP=false
 Environment=GF_ANALYTICS_REPORTING_ENABLED=false
 CONF
 
-# 데이터 소스 (MySQL, TLS + RDS CA 검증, 읽기 전용 계정)
-cat > /etc/grafana/provisioning/datasources/slowq.yml <<YML
-apiVersion: 1
-datasources:
-  - name: slowq-store
-    uid: slowq-store
-    type: mysql
-    url: ${db_host}:3306
-    user: $DS_USER
-    jsonData:
-      database: ${db_name}
-      tlsAuthWithCACert: true
-      tlsSkipVerify: false
-    secureJsonData:
-      password: \$__file{/etc/grafana/secrets/ds_password}
-      tlsCACert: \$__file{/etc/grafana/secrets/rds-ca.pem}
-    isDefault: true
-YML
+# RPM Grafana는 Docker entrypoint의 __FILE 환경 변수를 처리하지 않는다.
+# 관리자 비밀번호는 grafana.ini의 공식 file provider로 읽는다.
+# 데이터 소스 프로비저닝은 file provider가 아닌 실제 값을 가진 JSON(YAML 호환)으로 쓴다.
+# json.dumps로 비밀번호 특수문자와 여러 줄 PEM을 안전하게 직렬화하고 파일 권한은 640으로 제한한다.
+python3 - <<'PYCONFIG'
+import configparser, json
+from pathlib import Path
+conf = Path('/etc/grafana/grafana.ini')
+config = configparser.ConfigParser(interpolation=None, strict=False)
+config.read(conf)
+if not config.has_section('security'):
+    config.add_section('security')
+config.set('security', 'admin_password', '$__file{/etc/grafana/secrets/admin_password}')
+with conf.open('w') as out:
+    config.write(out)
+conf.chmod(0o640)
+# Provisioning expands environment variables; escape literal dollars before serialization.
+def value(name):
+    return Path('/etc/grafana/secrets/' + name).read_text().strip().replace('$', '$$')
+document = {'apiVersion': 1, 'datasources': [{
+    'name': 'slowq-store', 'uid': 'slowq-store', 'type': 'mysql',
+    'url': '${db_host}:3306', 'user': value('ds_username'),
+    'jsonData': {'database': '${db_name}', 'tlsAuthWithCACert': True, 'tlsSkipVerify': False},
+    'secureJsonData': {'password': value('ds_password'), 'tlsCACert': value('rds-ca.pem')},
+    'isDefault': True}]}
+Path('/etc/grafana/provisioning/datasources/slowq.yml').write_text(json.dumps(document))
+PYCONFIG
+chown root:grafana /etc/grafana/grafana.ini
 
 cat > /etc/grafana/provisioning/dashboards/slowq.yml <<'YML'
 apiVersion: 1
