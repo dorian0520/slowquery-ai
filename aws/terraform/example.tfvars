@@ -3,14 +3,20 @@ region      = "ap-northeast-2"
 name_prefix = "slowq"
 # 실제 12자리 계정 ID를 넣으면 잘못된 계정에서 배포/삭제하지 못한다
 # expected_account_id = "<12자리 계정 ID>"
-db_engine_version = "8.4"
+db_engine_version     = "8.4"
+db_instance_class     = "db.t4g.micro"
+db_allocated_storage  = 20
+grafana_instance_type = "t4g.micro"
+lambda_memory_mb      = 128
+log_retention_days    = 1
+analyze_max           = 1
 
 # Bedrock: 서울 리전은 global. 추론 프로필만 지원 (README 「Bedrock 모델 ID」 참고)
 bedrock_model_id = "global.anthropic.claude-sonnet-4-6"
 
 # 처음에는 수동 실행으로 확인한 뒤 켠다
 schedule_enabled = false
-enable_workload  = true
+enable_workload  = false
 
 # 실패 알림 메일 (구독 확인 메일의 링크를 눌러야 받는다)
 alert_email = ""

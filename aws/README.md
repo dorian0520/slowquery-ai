@@ -82,7 +82,7 @@ flowchart LR
 | `terraform/lambda.tf` | Lambda 12개 + 레이어(pymysql · cryptography) | 패키지 하나를 공유하고 핸들러만 다름 (arm64 · python3.12) |
 | `terraform/stepfunctions.tf` | 상태 머신 `slowq-daily` | `statemachine/daily.asl.json` 을 `templatefile` 로 채움. 실행 데이터는 로그에 남기지 않음 |
 | `terraform/schedule.tf` | EventBridge Scheduler × 2 | 일일 실행(기본 꺼짐) · 부하 발생(선택) |
-| `terraform/grafana.tf` | EC2 `t4g.small` (AL2023 arm64) · 보안 그룹 · 인스턴스 역할 | Grafana OSS 설치, MySQL 데이터 소스(TLS · 읽기 전용 계정), `lab/grafana` 대시보드 그대로 |
+| `terraform/grafana.tf` | EC2 `t4g.micro` (AL2023 arm64) · 보안 그룹 · 인스턴스 역할 | Grafana OSS 설치, MySQL 데이터 소스(TLS · 읽기 전용 계정), `lab/grafana` 대시보드 그대로 |
 | `terraform/monitoring.tf` | SNS 토픽 · CloudWatch 경보 | 상태 머신 실패 · 시간 초과 · 중단, 검증 Lambda 오류 → SNS(이메일 선택) |
 | `terraform/main.tf` | S3 버킷 | 리포트 · 변경 계획서 · 대시보드 JSON (비공개 · 암호화 · TLS 강제) |
 
@@ -103,7 +103,21 @@ flowchart LR
 | `report` | Report (주 1회) | `slowq_store` | S3 `reports/<날짜>/weekly.md · .html` |
 | `apply-plan` | 수동 | `slowq_ai` · `slowq_store` | 계획서만 S3 `plans/` 에. **DDL 실행 없음** |
 
-## 2. 하루 비용 (대략)
+## 2. 최소 실습 사양과 비용
+
+| 항목 | 기본 설정 |
+|---|---|
+| RDS target / verify | 각각 `db.t4g.micro`, gp3 20GiB, Single-AZ |
+| Grafana | `t4g.micro` 1GiB, gp3 8GiB, CPU 크레딧 standard |
+| Lambda 12개 | 모두 128MB, arm64, 임시 저장소 기본 512MB |
+| 자동 실행 / 부하 / NAT | 모두 꺼짐 |
+| AI 분석 | 실행당 후보 1개 |
+| CloudWatch 로그 | 1일 보관 |
+| 합성 실습 DB 자동 백업 | 0일, PITR 없음 |
+
+RDS 두 대는 대상·검증 DB 분리를 위해 유지합니다. RDS gp3는 [서비스 최소 20GiB](https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_CreateDBInstance.html)이며 Lambda는 [서비스 최소 128MB](https://docs.aws.amazon.com/lambda/latest/dg/configuration-memory.html)입니다. Grafana 자체의 [최소 권장 메모리는 512MB](https://grafana.com/docs/grafana/latest/setup-grafana/installation/)이지만 OS·SSM도 함께 실행하므로 1GiB EC2를 최소 실습 기본값으로 선택했습니다. 이는 실제 부하 검증을 마친 최소 보장치가 아닙니다. 이전 실제 검증은 Lambda 256MB·Grafana t4g.small에서 수행했습니다.
+
+메모리가 줄면 CPU 성능·적재 시간·측정 시간도 달라질 수 있습니다. 로그 1일·자동 백업 0일은 합성 실습용이며 장기 복구 기록이 필요한 운영 환경의 기본값으로 사용하지 않습니다.
 
 배포 전 [AWS 요금 계산기](https://calculator.aws/)에 실제 리전·가동 시간·인스턴스·스토리지·추론 모델을 입력하세요. 확정 청구 금액을 검증한 기록은 없습니다.
 

@@ -113,6 +113,10 @@ resource "aws_instance" "grafana" {
   iam_instance_profile        = aws_iam_instance_profile.grafana.name
   associate_public_ip_address = true # 패키지 설치용 아웃바운드 (인바운드는 보안 그룹이 막는다)
 
+  credit_specification {
+    cpu_credits = "standard" # T4g 잉여 CPU 크레딧 과금 대신 크레딧 소진 시 제한
+  }
+
   metadata_options {
     http_tokens   = "required" # IMDSv2 만
     http_endpoint = "enabled"

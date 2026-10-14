@@ -130,7 +130,7 @@ variable "rules" {
 variable "analyze_max" {
   description = "실행 한 번의 AI 분석 티켓 상한 (0이면 분석 끔). 반복 실행의 일일 비용 상한은 아니다."
   type        = number
-  default     = 5
+  default     = 1
   validation {
     condition     = var.analyze_max >= 0 && var.analyze_max <= 10 && floor(var.analyze_max) == var.analyze_max
     error_message = "analyze_max 는 상태 크기를 제한하기 위해 0~10 정수여야 합니다."
@@ -186,11 +186,21 @@ variable "grafana_allowed_cidrs" {
 variable "grafana_instance_type" {
   description = "Grafana EC2 인스턴스 타입 (arm64)"
   type        = string
-  default     = "t4g.small"
+  default     = "t4g.micro"
+}
+
+variable "lambda_memory_mb" {
+  description = "전체 Lambda의 메모리(MB). 실습 최소 기본값 128, CPU 성능도 메모리에 비례한다."
+  type        = number
+  default     = 128
+  validation {
+    condition     = var.lambda_memory_mb >= 128 && var.lambda_memory_mb <= 10240 && floor(var.lambda_memory_mb) == var.lambda_memory_mb
+    error_message = "lambda_memory_mb 는 128~10240 사이 정수여야 합니다."
+  }
 }
 
 variable "log_retention_days" {
   description = "CloudWatch Logs 보관 기간"
   type        = number
-  default     = 14
+  default     = 1
 }

@@ -90,10 +90,10 @@
 | 변수 | 기본값 | 바꾸는 경우 |
 |---|---|---|
 | `schedule_enabled` | `false` | 수동 실행으로 확인한 뒤 매일 자동 실행을 켤 때 `true` |
-| `enable_workload` | `false` (`example.tfvars` 는 `true`) | 3시간마다 부하 Lambda 를 돌릴지 |
+| `enable_workload` | `false` (예시 파일도 꺼짐) | 3시간마다 부하 Lambda 를 돌릴지 |
 | `bedrock_model_id` | `global.anthropic.claude-sonnet-4-6` | 리전 · 모델이 다를 때 ([aws/README.md](../README.md) 3장) |
 | `rules` | `min_sec = 0.5` · `min_q = 30` … | 실습 부하에서 티켓이 안 생기면 lab 과 같은 `0.2` · `5` 로 (객체라 6개 값을 모두 적음) |
-| `analyze_max` | `5` | 실행 한 번의 분석 후보 0~10개 (일일 예산 제한 아님) |
+| `analyze_max` | `1` | 실행 한 번의 분석 후보 0~10개 (일일 예산 제한 아님) |
 | `grafana_allowed_cidrs` | `[]` | 비우면 SSM 포트 포워딩으로만 접속. 내 IP 만 열려면 `["x.x.x.x/32"]` |
 | `publish_dry_run` · `enable_nat` | `true` · `false` | 실제 Jira · Slack 전송 (자격 증명도 필요) |
 
@@ -122,3 +122,9 @@
 ## 삭제·반복 실행 전 확인
 
 삭제 권한 점검과 잔존 자원 확인은 [OPERATIONS.md](../OPERATIONS.md)를 따릅니다. 명시적 거부가 있으면 정책을 우회하지 않고 승인된 예외 또는 승인된 삭제 담당 경로를 마련합니다. 검증 Lambda의 예약 동시 실행 수는 1이며 Map도 1입니다. 수집·티켓 기록까지 포함한 실행 전체의 동시 실행 잠금은 구현하지 않았으므로 일일 파이프라인을 겹쳐 시작하지 마세요.
+
+## 최소 사양 기본값
+
+`db.t4g.micro` × 2·gp3 20GiB × 2, Grafana `t4g.micro`·gp3 8GiB, 모든 Lambda 128MB(`lambda_memory_mb`)입니다. 자동 스케줄·자동 부하·NAT는 기본 꺼짐, 분석 후보는 실행당 1개, 로그는 1일 보관, 합성 DB 자동 백업은 0일입니다. Grafana CPU 크레딧은 standard로 과금 가능한 잉여 크레딧 대신 성능 제한을 사용합니다.
+
+이 변경은 소스 기본값이며 기존 배포에 자동 적용되지 않습니다. 삭제 중인 상태에 apply하면 이미 제거한 자원이 다시 생성될 수 있으므로 삭제 작업과 최소 사양 신규 실습을 분리합니다. 이전 실행에서 확인한 Lambda 256MB·Grafana t4g.small의 결과를 이 최소 사양의 성능 검증으로 해석하지 않습니다.

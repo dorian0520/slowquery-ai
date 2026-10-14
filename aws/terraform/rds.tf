@@ -64,7 +64,7 @@ locals {
     parameter_group_name    = aws_db_parameter_group.mysql.name
     vpc_security_group_ids  = [aws_security_group.rds.id]
     username                = "slowq_admin"
-    backup_retention_period = 1
+    backup_retention_period = 0 # 합성 실습의 최소 구성: 자동 백업/PITR 없음
   }
 }
 

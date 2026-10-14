@@ -13,18 +13,18 @@ locals {
 
   # 함수별: 핸들러 · 제한 시간 · 메모리 · 읽을 수 있는 비밀 · S3 쓰기 경로 · Bedrock 사용 여부
   functions = {
-    init-db       = { handler = "slowq_aws.init_db.handler", timeout = 900, memory = 256, secrets = ["target_master", "verify_master", "collector", "store", "ai", "verify", "grafana", "workload"], s3_prefixes = [], bedrock = false }
-    workload      = { handler = "slowq_aws.workload.handler", timeout = 900, memory = 256, secrets = ["workload"], s3_prefixes = [], bedrock = false }
-    collect       = { handler = "slowq_aws.collect.handler", timeout = 300, memory = 256, secrets = ["store", "collector"], s3_prefixes = [], bedrock = false }
-    detect        = { handler = "slowq_aws.detect.handler", timeout = 120, memory = 256, secrets = ["store"], s3_prefixes = [], bedrock = false }
-    issue-tickets = { handler = "slowq_aws.issue_tickets.handler", timeout = 120, memory = 256, secrets = ["store"], s3_prefixes = [], bedrock = false }
-    analyze       = { handler = "slowq_aws.analyze.handler", timeout = 900, memory = 256, secrets = ["ai"], s3_prefixes = [], bedrock = true }
-    verify        = { handler = "slowq_aws.verify.handler", timeout = 900, memory = 256, secrets = ["verify"], s3_prefixes = [], bedrock = false }
-    attach        = { handler = "slowq_aws.attach.handler", timeout = 60, memory = 256, secrets = ["store"], s3_prefixes = [], bedrock = false }
-    track         = { handler = "slowq_aws.track.handler", timeout = 120, memory = 256, secrets = ["store"], s3_prefixes = [], bedrock = false }
-    publish       = { handler = "slowq_aws.publish.handler", timeout = 300, memory = 256, secrets = ["store", "publish"], s3_prefixes = [], bedrock = false }
-    report        = { handler = "slowq_aws.report.handler", timeout = 300, memory = 256, secrets = ["store"], s3_prefixes = ["reports/"], bedrock = false }
-    apply-plan    = { handler = "slowq_aws.apply_plan.handler", timeout = 120, memory = 256, secrets = ["store", "ai"], s3_prefixes = ["plans/"], bedrock = false }
+    init-db       = { handler = "slowq_aws.init_db.handler", timeout = 900, memory = var.lambda_memory_mb, secrets = ["target_master", "verify_master", "collector", "store", "ai", "verify", "grafana", "workload"], s3_prefixes = [], bedrock = false }
+    workload      = { handler = "slowq_aws.workload.handler", timeout = 900, memory = var.lambda_memory_mb, secrets = ["workload"], s3_prefixes = [], bedrock = false }
+    collect       = { handler = "slowq_aws.collect.handler", timeout = 300, memory = var.lambda_memory_mb, secrets = ["store", "collector"], s3_prefixes = [], bedrock = false }
+    detect        = { handler = "slowq_aws.detect.handler", timeout = 120, memory = var.lambda_memory_mb, secrets = ["store"], s3_prefixes = [], bedrock = false }
+    issue-tickets = { handler = "slowq_aws.issue_tickets.handler", timeout = 120, memory = var.lambda_memory_mb, secrets = ["store"], s3_prefixes = [], bedrock = false }
+    analyze       = { handler = "slowq_aws.analyze.handler", timeout = 900, memory = var.lambda_memory_mb, secrets = ["ai"], s3_prefixes = [], bedrock = true }
+    verify        = { handler = "slowq_aws.verify.handler", timeout = 900, memory = var.lambda_memory_mb, secrets = ["verify"], s3_prefixes = [], bedrock = false }
+    attach        = { handler = "slowq_aws.attach.handler", timeout = 60, memory = var.lambda_memory_mb, secrets = ["store"], s3_prefixes = [], bedrock = false }
+    track         = { handler = "slowq_aws.track.handler", timeout = 120, memory = var.lambda_memory_mb, secrets = ["store"], s3_prefixes = [], bedrock = false }
+    publish       = { handler = "slowq_aws.publish.handler", timeout = 300, memory = var.lambda_memory_mb, secrets = ["store", "publish"], s3_prefixes = [], bedrock = false }
+    report        = { handler = "slowq_aws.report.handler", timeout = 300, memory = var.lambda_memory_mb, secrets = ["store"], s3_prefixes = ["reports/"], bedrock = false }
+    apply-plan    = { handler = "slowq_aws.apply_plan.handler", timeout = 120, memory = var.lambda_memory_mb, secrets = ["store", "ai"], s3_prefixes = ["plans/"], bedrock = false }
   }
 
   # Step Functions 가 부르는 함수 (init-db · workload · apply-plan 은 수동 또는 별도 스케줄)
